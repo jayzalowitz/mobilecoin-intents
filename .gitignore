@@ -1,0 +1,30 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# Cargo.lock is typically not committed for libraries
+# (uncomment if this is a library workspace)
+# Cargo.lock
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.sample
+
+# Debug files
+*.log
+*.pdb
+
+# Testing artifacts
+*.profraw
+lcov.info
