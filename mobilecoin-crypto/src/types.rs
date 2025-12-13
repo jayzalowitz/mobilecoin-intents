@@ -1,8 +1,8 @@
 //! Core cryptographic types for MobileCoin.
 
-use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey, Signature};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::error::CryptoError;
+use ed25519_dalek::{SecretKey, Signature, SigningKey, VerifyingKey};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A MobileCoin Ed25519 public key (32 bytes).
 ///
@@ -18,13 +18,14 @@ impl MobPublicKey {
 
     /// Create from a hex string.
     pub fn from_hex(hex_str: &str) -> Result<Self, CryptoError> {
-        let bytes = hex::decode(hex_str)
-            .map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))?;
+        let bytes =
+            hex::decode(hex_str).map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))?;
 
         if bytes.len() != 32 {
-            return Err(CryptoError::InvalidPublicKey(
-                format!("Expected 32 bytes, got {}", bytes.len())
-            ));
+            return Err(CryptoError::InvalidPublicKey(format!(
+                "Expected 32 bytes, got {}",
+                bytes.len()
+            )));
         }
 
         let mut arr = [0u8; 32];
@@ -44,8 +45,7 @@ impl MobPublicKey {
 
     /// Convert to ed25519_dalek VerifyingKey.
     pub fn to_verifying_key(&self) -> Result<VerifyingKey, CryptoError> {
-        VerifyingKey::from_bytes(&self.0)
-            .map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))
+        VerifyingKey::from_bytes(&self.0).map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))
     }
 }
 
@@ -60,9 +60,10 @@ impl TryFrom<&[u8]> for MobPublicKey {
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         if bytes.len() != 32 {
-            return Err(CryptoError::InvalidPublicKey(
-                format!("Expected 32 bytes, got {}", bytes.len())
-            ));
+            return Err(CryptoError::InvalidPublicKey(format!(
+                "Expected 32 bytes, got {}",
+                bytes.len()
+            )));
         }
         let mut arr = [0u8; 32];
         arr.copy_from_slice(bytes);
@@ -82,13 +83,14 @@ impl MobSignature {
 
     /// Create from a hex string.
     pub fn from_hex(hex_str: &str) -> Result<Self, CryptoError> {
-        let bytes = hex::decode(hex_str)
-            .map_err(|e| CryptoError::InvalidSignature(e.to_string()))?;
+        let bytes =
+            hex::decode(hex_str).map_err(|e| CryptoError::InvalidSignature(e.to_string()))?;
 
         if bytes.len() != 64 {
-            return Err(CryptoError::InvalidSignature(
-                format!("Expected 64 bytes, got {}", bytes.len())
-            ));
+            return Err(CryptoError::InvalidSignature(format!(
+                "Expected 64 bytes, got {}",
+                bytes.len()
+            )));
         }
 
         let mut arr = [0u8; 64];
@@ -123,9 +125,10 @@ impl TryFrom<&[u8]> for MobSignature {
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         if bytes.len() != 64 {
-            return Err(CryptoError::InvalidSignature(
-                format!("Expected 64 bytes, got {}", bytes.len())
-            ));
+            return Err(CryptoError::InvalidSignature(format!(
+                "Expected 64 bytes, got {}",
+                bytes.len()
+            )));
         }
         let mut arr = [0u8; 64];
         arr.copy_from_slice(bytes);

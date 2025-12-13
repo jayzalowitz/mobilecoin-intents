@@ -207,8 +207,7 @@ impl MobVerifier {
 
     /// Parse and validate MOB address for settlement.
     pub fn validate_for_settlement(&self, address: &str) -> Result<bool, String> {
-        let validation = validate_mob_address(address)
-            .map_err(|e| format!("{}", e))?;
+        let validation = validate_mob_address(address).map_err(|e| format!("{}", e))?;
 
         if !validation.is_valid {
             return Err(validation.messages.join(", "));
@@ -272,7 +271,10 @@ impl MobVerifier {
     /// Process a MobileCoin swap intent.
     pub fn process_mob_intent(&mut self, signed_intent: SignedMobIntent) -> String {
         // Check chain is active
-        let config = self.config.as_ref().expect("MobileCoin chain not registered");
+        let config = self
+            .config
+            .as_ref()
+            .expect("MobileCoin chain not registered");
         assert!(config.active, "MobileCoin chain not active");
 
         // Verify signature
@@ -325,11 +327,7 @@ impl MobVerifier {
     }
 
     fn assert_owner_only(&self) {
-        assert_eq!(
-            env::predecessor_account_id(),
-            self.owner,
-            "Only owner"
-        );
+        assert_eq!(env::predecessor_account_id(), self.owner, "Only owner");
     }
 }
 

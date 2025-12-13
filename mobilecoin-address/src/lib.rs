@@ -40,22 +40,22 @@
 //! }
 //! ```
 
-mod types;
-mod parsing;
-mod validation;
-mod serialization;
 mod error;
+mod parsing;
+mod serialization;
+mod types;
+mod validation;
 
-pub use types::{MobAddress, FogInfo, MobNetwork, RistrettoPublic};
+pub use error::AddressError;
 pub use parsing::{parse_mob_address, parse_mob_address_for_network};
+pub use serialization::{
+    address_from_bytes, address_to_bytes, mob_address_to_near_string, near_string_to_mob_address,
+    serialize_mob_address,
+};
+pub use types::{FogInfo, MobAddress, MobNetwork, RistrettoPublic};
 pub use validation::{
     validate_mob_address, validate_network, validate_public_key, ValidationResult,
 };
-pub use serialization::{
-    serialize_mob_address, address_to_bytes, address_from_bytes,
-    mob_address_to_near_string, near_string_to_mob_address,
-};
-pub use error::AddressError;
 
 /// Version byte for mainnet addresses.
 pub const MAINNET_VERSION: u8 = 0x00;

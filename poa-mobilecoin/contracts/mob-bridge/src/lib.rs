@@ -26,7 +26,7 @@ use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::json_types::U128;
 use near_sdk::{env, near_bindgen, AccountId, Balance, PanicOnDefault, Promise, PublicKey};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Maximum number of authorities.
 const MAX_AUTHORITIES: usize = 20;
@@ -184,7 +184,10 @@ impl MobBridge {
         assert!(!authorities.is_empty(), "Must have at least one authority");
         assert!(authorities.len() <= MAX_AUTHORITIES, "Too many authorities");
         assert!(threshold >= MIN_THRESHOLD, "Threshold too low");
-        assert!(threshold <= authorities.len() as u32, "Threshold exceeds authority count");
+        assert!(
+            threshold <= authorities.len() as u32,
+            "Threshold exceeds authority count"
+        );
 
         Self {
             wmob_token,
@@ -196,7 +199,7 @@ impl MobBridge {
             mob_custody_address,
             owner: env::predecessor_account_id(),
             paused: false,
-            min_deposit: 1_000_000_000, // 0.001 MOB
+            min_deposit: 1_000_000_000,         // 0.001 MOB
             max_deposit: 1_000_000_000_000_000, // 1000 MOB
             rate_limit_config: RateLimitConfig::default(),
             rate_limit_state: RateLimitState::default(),
@@ -478,10 +481,7 @@ impl MobBridge {
     fn create_deposit_message(&self, proof: &DepositProof) -> Vec<u8> {
         let msg = format!(
             "DEPOSIT:{}:{}:{}:{}",
-            proof.tx_hash,
-            proof.recipient,
-            proof.amount.0,
-            proof.block_number
+            proof.tx_hash, proof.recipient, proof.amount.0, proof.block_number
         );
         let mut hasher = Sha256::new();
         hasher.update(msg.as_bytes());
@@ -521,8 +521,7 @@ impl MobBridge {
             let authority_pubkey = &self.authorities[sig.authority_index as usize];
 
             // Decode signature from hex
-            let sig_bytes = hex::decode(&sig.signature)
-                .expect("Invalid signature hex encoding");
+            let sig_bytes = hex::decode(&sig.signature).expect("Invalid signature hex encoding");
 
             assert_eq!(sig_bytes.len(), 64, "Signature must be 64 bytes");
 
@@ -543,7 +542,11 @@ impl MobBridge {
             // For now, we construct the verification manually
             let is_valid = self.ed25519_verify(ed25519_pubkey, message, &sig_array);
 
-            assert!(is_valid, "Invalid signature from authority {}", sig.authority_index);
+            assert!(
+                is_valid,
+                "Invalid signature from authority {}",
+                sig.authority_index
+            );
             verified_count += 1;
         }
 
@@ -623,7 +626,8 @@ impl MobBridge {
             self.rate_limit_state.deposit_count += 1;
         } else {
             assert!(
-                self.rate_limit_state.withdrawal_count < self.rate_limit_config.max_withdrawals_per_hour,
+                self.rate_limit_state.withdrawal_count
+                    < self.rate_limit_config.max_withdrawals_per_hour,
                 "Rate limit exceeded: too many withdrawals this hour"
             );
             self.rate_limit_state.withdrawal_count += 1;
@@ -647,15 +651,9 @@ impl MobBridge {
     fn validate_mob_address(&self, address: &str) {
         // MobileCoin addresses are Base58-encoded and typically 66-100 characters
         // Minimum length check
-        assert!(
-            address.len() >= 66,
-            "Invalid MobileCoin address: too short"
-        );
+        assert!(address.len() >= 66, "Invalid MobileCoin address: too short");
 
-        assert!(
-            address.len() <= 200,
-            "Invalid MobileCoin address: too long"
-        );
+        assert!(address.len() <= 200, "Invalid MobileCoin address: too long");
 
         // Validate it's valid Base58 (only alphanumeric, no 0/O/I/l)
         let is_valid_base58 = address.chars().all(|c| {
@@ -690,7 +688,9 @@ mod tests {
     }
 
     fn create_test_public_key() -> PublicKey {
-        "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".parse().unwrap()
+        "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp"
+            .parse()
+            .unwrap()
     }
 
     #[test]
@@ -723,11 +723,9 @@ mod tests {
         );
 
         // Use a valid Base58 test address (66+ chars, no 0/O/I/l)
-        let test_mob_address = "2mGjuQNPWLJQABHNBaQoUgqmC3ZZYqYLqvHUxKJZX9KYvFSoiqwHnm7D2uCZNfcbgvWsNXE".to_string();
-        let id = contract.withdraw(
-            test_mob_address,
-            U128::from(1_000_000_000_000u128),
-        );
+        let test_mob_address =
+            "2mGjuQNPWLJQABHNBaQoUgqmC3ZZYqYLqvHUxKJZX9KYvFSoiqwHnm7D2uCZNfcbgvWsNXE".to_string();
+        let id = contract.withdraw(test_mob_address, U128::from(1_000_000_000_000u128));
 
         assert_eq!(id, 0);
 

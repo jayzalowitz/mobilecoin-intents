@@ -11,7 +11,10 @@ pub enum SolverError {
     Connection(String),
 
     #[error("Unsupported pair: {source_asset} -> {dest_asset}")]
-    UnsupportedPair { source_asset: String, dest_asset: String },
+    UnsupportedPair {
+        source_asset: String,
+        dest_asset: String,
+    },
 
     #[error("Insufficient liquidity for {asset}: need {needed}, have {available}")]
     InsufficientLiquidity {

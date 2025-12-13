@@ -1,6 +1,6 @@
 //! Message hashing utilities for MobileCoin signing.
 
-use sha2::{Sha256, Sha512, Digest};
+use sha2::{Digest, Sha256, Sha512};
 
 /// Hash a message for MobileCoin signing using SHA-512.
 ///
@@ -41,11 +41,7 @@ pub fn hash_message_for_signing(message: &[u8]) -> [u8; 64] {
 /// action: <action>\n
 /// params_hash: <sha256(params)>\n
 /// ```
-pub fn create_signable_message(
-    intent_id: &str,
-    action: &str,
-    params: &[u8],
-) -> Vec<u8> {
+pub fn create_signable_message(intent_id: &str, action: &str, params: &[u8]) -> Vec<u8> {
     let params_hash = hash_params(params);
     let params_hash_hex = hex::encode(params_hash);
 
@@ -98,13 +94,7 @@ pub fn create_swap_message(
         min_dest_amount: {}\n\
         dest_address: {}\n\
         deadline: {}\n",
-        intent_id,
-        source_asset,
-        source_amount,
-        dest_asset,
-        min_dest_amount,
-        dest_address,
-        deadline
+        intent_id, source_asset, source_amount, dest_asset, min_dest_amount, dest_address, deadline
     );
 
     message.into_bytes()
@@ -201,10 +191,9 @@ mod tests {
         assert_eq!(hash.len(), 32);
 
         // Known SHA-256 hash for "test data"
-        let expected = hex::decode(
-            "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"
-        )
-        .unwrap();
+        let expected =
+            hex::decode("916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9")
+                .unwrap();
 
         assert_eq!(hash.as_slice(), expected.as_slice());
     }

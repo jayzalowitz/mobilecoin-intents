@@ -1,7 +1,7 @@
 //! Address serialization functions.
 
-use crate::{MobAddress, MobNetwork, RistrettoPublic, FogInfo, AddressError};
-use sha2::{Sha256, Digest};
+use crate::{AddressError, FogInfo, MobAddress, MobNetwork, RistrettoPublic};
+use sha2::{Digest, Sha256};
 
 /// Serialize a MobileCoin address to a Base58Check encoded string.
 ///
@@ -74,17 +74,25 @@ pub fn address_from_bytes(bytes: &[u8]) -> Result<MobAddress, AddressError> {
 
     // Parse version
     let version = payload[0];
-    let network = MobNetwork::from_version_byte(version)
-        .ok_or(AddressError::InvalidVersion(version))?;
+    let network =
+        MobNetwork::from_version_byte(version).ok_or(AddressError::InvalidVersion(version))?;
 
     // Parse keys
-    let view_key_bytes: [u8; 32] = payload[1..33]
-        .try_into()
-        .map_err(|_| AddressError::InvalidLength { expected: 32, actual: 0 })?;
+    let view_key_bytes: [u8; 32] =
+        payload[1..33]
+            .try_into()
+            .map_err(|_| AddressError::InvalidLength {
+                expected: 32,
+                actual: 0,
+            })?;
 
-    let spend_key_bytes: [u8; 32] = payload[33..65]
-        .try_into()
-        .map_err(|_| AddressError::InvalidLength { expected: 32, actual: 0 })?;
+    let spend_key_bytes: [u8; 32] =
+        payload[33..65]
+            .try_into()
+            .map_err(|_| AddressError::InvalidLength {
+                expected: 32,
+                actual: 0,
+            })?;
 
     let view_public_key = RistrettoPublic::new(view_key_bytes);
     let spend_public_key = RistrettoPublic::new(spend_key_bytes);
@@ -218,14 +226,18 @@ fn deserialize_fog_info(bytes: &[u8]) -> Result<Option<FogInfo>, AddressError> {
 
     // Report ID
     if offset + 2 > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("Missing report ID".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Missing report ID".to_string(),
+        ));
     }
 
     let report_id_len = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]) as usize;
     offset += 2;
 
     if offset + report_id_len > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("Report ID overflow".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Report ID overflow".to_string(),
+        ));
     }
 
     let fog_report_id = String::from_utf8(bytes[offset..offset + report_id_len].to_vec())

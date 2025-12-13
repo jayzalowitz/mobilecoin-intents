@@ -1,8 +1,8 @@
 //! Ed25519 signature verification for MobileCoin.
 
+use crate::{CryptoError, MobKeyPair, MobPublicKey, MobSignature};
 use ed25519_dalek::Verifier;
-use crate::{MobPublicKey, MobSignature, MobKeyPair, CryptoError};
-use sha2::{Sha512, Digest};
+use sha2::{Digest, Sha512};
 
 /// Domain separator prefix for MobileCoin intent signatures.
 pub const MOB_INTENT_DOMAIN: &str = "MobileCoin Intent v1";
@@ -87,11 +87,7 @@ pub fn verify_mob_signature_with_domain(
 ///
 /// # Returns
 /// The Ed25519 signature over the domain-prefixed message.
-pub fn sign_message(
-    domain: &str,
-    message: &[u8],
-    key_pair: &MobKeyPair,
-) -> MobSignature {
+pub fn sign_message(domain: &str, message: &[u8], key_pair: &MobKeyPair) -> MobSignature {
     let domain_message = create_domain_message(domain, message);
     key_pair.sign(&domain_message)
 }
@@ -127,9 +123,7 @@ pub fn hash_message_sha512(message: &[u8]) -> [u8; 64] {
 /// # Returns
 /// * `Ok(())` - All signatures are valid
 /// * `Err(CryptoError)` - At least one signature is invalid
-pub fn verify_batch(
-    items: &[(&[u8], &MobSignature, &MobPublicKey)],
-) -> Result<(), CryptoError> {
+pub fn verify_batch(items: &[(&[u8], &MobSignature, &MobPublicKey)]) -> Result<(), CryptoError> {
     for (message, signature, public_key) in items {
         if !verify_mob_signature(message, signature, public_key)? {
             return Err(CryptoError::VerificationFailed);
@@ -220,10 +214,8 @@ mod tests {
         let pk1 = keypair1.public_key();
         let pk2 = keypair2.public_key();
 
-        let items: Vec<(&[u8], &MobSignature, &MobPublicKey)> = vec![
-            (msg1, &sig1, &pk1),
-            (msg2, &sig2, &pk2),
-        ];
+        let items: Vec<(&[u8], &MobSignature, &MobPublicKey)> =
+            vec![(msg1, &sig1, &pk1), (msg2, &sig2, &pk2)];
 
         assert!(verify_batch(&items).is_ok());
     }

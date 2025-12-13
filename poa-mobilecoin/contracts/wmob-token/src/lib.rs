@@ -126,9 +126,12 @@ impl WMobToken {
         let current_balance = self.balances.get(&account_id).unwrap_or(0);
 
         // Use checked arithmetic to prevent overflow
-        let new_balance = current_balance.checked_add(amount)
+        let new_balance = current_balance
+            .checked_add(amount)
             .expect("Balance overflow: mint would exceed maximum balance");
-        let new_supply = self.total_supply.checked_add(amount)
+        let new_supply = self
+            .total_supply
+            .checked_add(amount)
             .expect("Total supply overflow: mint would exceed maximum supply");
 
         self.balances.insert(&account_id, &new_balance);
@@ -159,9 +162,12 @@ impl WMobToken {
         assert!(current_balance >= amount, "Insufficient balance to burn");
 
         // Use checked arithmetic to prevent underflow
-        let new_balance = current_balance.checked_sub(amount)
+        let new_balance = current_balance
+            .checked_sub(amount)
             .expect("Balance underflow: burn would result in negative balance");
-        let new_supply = self.total_supply.checked_sub(amount)
+        let new_supply = self
+            .total_supply
+            .checked_sub(amount)
             .expect("Total supply underflow: burn would result in negative supply");
 
         self.balances.insert(&account_id, &new_balance);
@@ -346,20 +352,25 @@ impl WMobToken {
         amount: Balance,
         memo: Option<String>,
     ) {
-        assert_ne!(sender_id, receiver_id, "Sender and receiver cannot be the same");
+        assert_ne!(
+            sender_id, receiver_id,
+            "Sender and receiver cannot be the same"
+        );
         assert!(amount > 0, "Amount must be positive");
 
         let sender_balance = self.balances.get(sender_id).unwrap_or(0);
         assert!(sender_balance >= amount, "Insufficient balance");
 
         // Use checked arithmetic for safe subtraction
-        let new_sender_balance = sender_balance.checked_sub(amount)
+        let new_sender_balance = sender_balance
+            .checked_sub(amount)
             .expect("Balance underflow in transfer");
         self.balances.insert(sender_id, &new_sender_balance);
 
         // Use checked arithmetic for safe addition
         let receiver_balance = self.balances.get(receiver_id).unwrap_or(0);
-        let new_receiver_balance = receiver_balance.checked_add(amount)
+        let new_receiver_balance = receiver_balance
+            .checked_add(amount)
             .expect("Balance overflow in transfer");
         self.balances.insert(receiver_id, &new_receiver_balance);
 
@@ -417,10 +428,12 @@ impl WMobToken {
             // Refund unused tokens
             let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0);
             if receiver_balance >= unused_amount {
-                self.balances.insert(&receiver_id, &(receiver_balance - unused_amount));
+                self.balances
+                    .insert(&receiver_id, &(receiver_balance - unused_amount));
 
                 let sender_balance = self.balances.get(&sender_id).unwrap_or(0);
-                self.balances.insert(&sender_id, &(sender_balance + unused_amount));
+                self.balances
+                    .insert(&sender_id, &(sender_balance + unused_amount));
             }
         }
 
@@ -468,7 +481,10 @@ mod tests {
         );
 
         assert_eq!(contract.ft_total_supply().0, 0);
-        assert_eq!(contract.get_bridge_contract(), "bridge.near".parse::<AccountId>().unwrap());
+        assert_eq!(
+            contract.get_bridge_contract(),
+            "bridge.near".parse::<AccountId>().unwrap()
+        );
     }
 
     #[test]
@@ -481,7 +497,10 @@ mod tests {
             "owner.near".parse().unwrap(),
         );
 
-        contract.mint("alice.near".parse().unwrap(), U128::from(1_000_000_000_000u128));
+        contract.mint(
+            "alice.near".parse().unwrap(),
+            U128::from(1_000_000_000_000u128),
+        );
 
         assert_eq!(contract.ft_total_supply().0, 1_000_000_000_000);
         assert_eq!(

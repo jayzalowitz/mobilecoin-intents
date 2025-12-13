@@ -1,8 +1,8 @@
 //! Payload traits for NEAR Intents integration.
 
-use serde::{Deserialize, Serialize};
-use crate::{MobPublicKey, MobSignature, MobSignedPayload, CryptoError, verify_mob_signature};
 use crate::hash::create_swap_message;
+use crate::{verify_mob_signature, CryptoError, MobPublicKey, MobSignature, MobSignedPayload};
+use serde::{Deserialize, Serialize};
 
 /// Trait for payloads that can be signed.
 pub trait Payload: Sized {

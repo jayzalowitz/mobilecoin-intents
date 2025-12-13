@@ -107,8 +107,16 @@ pub enum LiquidityError {
 impl std::fmt::Display for LiquidityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LiquidityError::InsufficientLiquidity { asset, needed, available } => {
-                write!(f, "Insufficient {} liquidity: need {}, have {}", asset, needed, available)
+            LiquidityError::InsufficientLiquidity {
+                asset,
+                needed,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Insufficient {} liquidity: need {}, have {}",
+                    asset, needed, available
+                )
             }
             LiquidityError::SyncError(msg) => write!(f, "Sync error: {}", msg),
         }

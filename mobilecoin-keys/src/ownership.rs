@@ -1,7 +1,9 @@
 //! Output ownership verification.
 
-use crate::{RistrettoPublic, RistrettoPrivate, KeyError};
-use crate::derivation::{derive_one_time_from_receiver, derive_one_time_private_key, derive_key_image};
+use crate::derivation::{
+    derive_key_image, derive_one_time_from_receiver, derive_one_time_private_key,
+};
+use crate::{KeyError, RistrettoPrivate, RistrettoPublic};
 
 /// A detected output that belongs to a wallet.
 #[derive(Debug, Clone)]
@@ -153,7 +155,7 @@ pub fn check_subaddress_ownership(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{WalletKeys, generate_tx_key, derive_one_time_public_key};
+    use crate::{derive_one_time_public_key, generate_tx_key, WalletKeys};
 
     #[test]
     fn test_ownership_check_positive() {
@@ -253,11 +255,7 @@ mod tests {
             2,
         );
 
-        let outputs = vec![
-            (our_output_0, 0),
-            (other_output, 1),
-            (our_output_2, 2),
-        ];
+        let outputs = vec![(our_output_0, 0), (other_output, 1), (our_output_2, 2)];
 
         let owned = scan_outputs_for_ownership(
             &outputs,
@@ -277,8 +275,14 @@ mod tests {
         assert!(owned[1].key_image.is_valid());
 
         // Private keys should match public keys
-        assert_eq!(owned[0].one_time_private_key.public_key(), owned[0].one_time_public_key);
-        assert_eq!(owned[1].one_time_private_key.public_key(), owned[1].one_time_public_key);
+        assert_eq!(
+            owned[0].one_time_private_key.public_key(),
+            owned[0].one_time_public_key
+        );
+        assert_eq!(
+            owned[1].one_time_private_key.public_key(),
+            owned[1].one_time_public_key
+        );
     }
 
     #[test]

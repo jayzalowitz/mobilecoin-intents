@@ -1,7 +1,7 @@
 //! Address parsing from strings.
 
-use crate::{MobAddress, MobNetwork, RistrettoPublic, FogInfo, AddressError};
-use sha2::{Sha256, Digest};
+use crate::{AddressError, FogInfo, MobAddress, MobNetwork, RistrettoPublic};
+use sha2::{Digest, Sha256};
 
 /// Minimum address length (version + 2 keys + checksum).
 const MIN_ADDRESS_LEN: usize = 1 + 32 + 32 + 4; // 69 bytes
@@ -48,23 +48,25 @@ pub fn parse_mob_address(address_str: &str) -> Result<MobAddress, AddressError> 
 
     // Parse version byte
     let version = payload[0];
-    let network = MobNetwork::from_version_byte(version)
-        .ok_or(AddressError::InvalidVersion(version))?;
+    let network =
+        MobNetwork::from_version_byte(version).ok_or(AddressError::InvalidVersion(version))?;
 
     // Parse public keys
-    let view_key_bytes: [u8; 32] = payload[1..33]
-        .try_into()
-        .map_err(|_| AddressError::InvalidLength {
-            expected: 32,
-            actual: 0,
-        })?;
+    let view_key_bytes: [u8; 32] =
+        payload[1..33]
+            .try_into()
+            .map_err(|_| AddressError::InvalidLength {
+                expected: 32,
+                actual: 0,
+            })?;
 
-    let spend_key_bytes: [u8; 32] = payload[33..65]
-        .try_into()
-        .map_err(|_| AddressError::InvalidLength {
-            expected: 32,
-            actual: 0,
-        })?;
+    let spend_key_bytes: [u8; 32] =
+        payload[33..65]
+            .try_into()
+            .map_err(|_| AddressError::InvalidLength {
+                expected: 32,
+                actual: 0,
+            })?;
 
     let view_public_key = RistrettoPublic::new(view_key_bytes);
     let spend_public_key = RistrettoPublic::new(spend_key_bytes);
@@ -129,7 +131,9 @@ fn parse_fog_info(bytes: &[u8]) -> Result<Option<FogInfo>, AddressError> {
     offset += 2;
 
     if offset + url_len > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("URL length overflow".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "URL length overflow".to_string(),
+        ));
     }
 
     let fog_report_url = String::from_utf8(bytes[offset..offset + url_len].to_vec())
@@ -138,14 +142,18 @@ fn parse_fog_info(bytes: &[u8]) -> Result<Option<FogInfo>, AddressError> {
 
     // Parse Report ID
     if offset + 2 > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("Missing report ID length".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Missing report ID length".to_string(),
+        ));
     }
 
     let report_id_len = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]) as usize;
     offset += 2;
 
     if offset + report_id_len > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("Report ID length overflow".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Report ID length overflow".to_string(),
+        ));
     }
 
     let fog_report_id = String::from_utf8(bytes[offset..offset + report_id_len].to_vec())
@@ -154,14 +162,18 @@ fn parse_fog_info(bytes: &[u8]) -> Result<Option<FogInfo>, AddressError> {
 
     // Parse SPKI
     if offset + 2 > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("Missing SPKI length".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Missing SPKI length".to_string(),
+        ));
     }
 
     let spki_len = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]) as usize;
     offset += 2;
 
     if offset + spki_len > bytes.len() {
-        return Err(AddressError::InvalidFogInfo("SPKI length overflow".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "SPKI length overflow".to_string(),
+        ));
     }
 
     let fog_authority_spki = bytes[offset..offset + spki_len].to_vec();
@@ -183,9 +195,7 @@ fn compute_checksum(payload: &[u8]) -> [u8; 4] {
 }
 
 /// Extract public keys from an address.
-pub fn extract_public_keys(
-    address: &MobAddress,
-) -> (RistrettoPublic, RistrettoPublic) {
+pub fn extract_public_keys(address: &MobAddress) -> (RistrettoPublic, RistrettoPublic) {
     (address.view_public_key, address.spend_public_key)
 }
 

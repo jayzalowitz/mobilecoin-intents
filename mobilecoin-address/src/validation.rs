@@ -1,7 +1,7 @@
 //! Address validation functions.
 
-use crate::{MobAddress, MobNetwork, RistrettoPublic, FogInfo, AddressError};
 use crate::parsing::parse_mob_address;
+use crate::{AddressError, FogInfo, MobAddress, MobNetwork, RistrettoPublic};
 
 /// Result of address validation.
 #[derive(Debug, Clone)]
@@ -126,7 +126,9 @@ pub fn validate_public_key(key: &RistrettoPublic) -> bool {
 pub fn validate_fog_info(fog_info: &FogInfo) -> Result<(), AddressError> {
     // Check URL format
     if fog_info.fog_report_url.is_empty() {
-        return Err(AddressError::InvalidFogInfo("Empty fog report URL".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Empty fog report URL".to_string(),
+        ));
     }
 
     if !fog_info.fog_report_url.starts_with("https://")
@@ -139,12 +141,16 @@ pub fn validate_fog_info(fog_info: &FogInfo) -> Result<(), AddressError> {
 
     // Check report ID
     if fog_info.fog_report_id.is_empty() {
-        return Err(AddressError::InvalidFogInfo("Empty fog report ID".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Empty fog report ID".to_string(),
+        ));
     }
 
     // Check SPKI
     if fog_info.fog_authority_spki.is_empty() {
-        return Err(AddressError::InvalidFogInfo("Empty fog authority SPKI".to_string()));
+        return Err(AddressError::InvalidFogInfo(
+            "Empty fog authority SPKI".to_string(),
+        ));
     }
 
     Ok(())
@@ -314,8 +320,8 @@ mod tests {
         assert!(!invalid.is_valid);
         assert!(invalid.messages.contains(&"Test error".to_string()));
 
-        let with_warning = ValidationResult::valid(MobNetwork::Mainnet, false)
-            .with_warning("Test warning");
+        let with_warning =
+            ValidationResult::valid(MobNetwork::Mainnet, false).with_warning("Test warning");
         assert!(with_warning.messages.contains(&"Test warning".to_string()));
     }
 }
