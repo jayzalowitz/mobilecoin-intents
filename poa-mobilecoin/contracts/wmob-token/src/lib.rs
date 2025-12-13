@@ -23,6 +23,23 @@ use near_sdk::json_types::U128;
 use near_sdk::{env, near_bindgen, AccountId, Balance, PanicOnDefault, Promise, PromiseOrValue};
 use serde::{Deserialize, Serialize};
 
+/// Sanitize a string for safe JSON output.
+/// Escapes special characters to prevent JSON injection.
+fn sanitize_memo(s: &str) -> String {
+    s.chars()
+        .take(256) // Limit memo length
+        .map(|c| match c {
+            '"' => "\\\"".to_string(),
+            '\\' => "\\\\".to_string(),
+            '\n' => "\\n".to_string(),
+            '\r' => "\\r".to_string(),
+            '\t' => "\\t".to_string(),
+            c if c.is_control() => format!("\\u{:04x}", c as u32),
+            c => c.to_string(),
+        })
+        .collect()
+}
+
 /// Metadata for the wMOB token.
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -96,15 +113,26 @@ impl WMobToken {
     /// # Arguments
     /// * `account_id` - Account to receive tokens
     /// * `amount` - Amount to mint in picoMOB
+    ///
+    /// # Security
+    /// Uses checked arithmetic to prevent integer overflow attacks.
     pub fn mint(&mut self, account_id: AccountId, amount: U128) {
         self.assert_not_paused();
         self.assert_bridge_only();
 
         let amount: Balance = amount.into();
+        assert!(amount > 0, "Amount must be positive");
 
         let current_balance = self.balances.get(&account_id).unwrap_or(0);
-        self.balances.insert(&account_id, &(current_balance + amount));
-        self.total_supply += amount;
+
+        // Use checked arithmetic to prevent overflow
+        let new_balance = current_balance.checked_add(amount)
+            .expect("Balance overflow: mint would exceed maximum balance");
+        let new_supply = self.total_supply.checked_add(amount)
+            .expect("Total supply overflow: mint would exceed maximum supply");
+
+        self.balances.insert(&account_id, &new_balance);
+        self.total_supply = new_supply;
 
         env::log_str(&format!(
             "EVENT_JSON:{{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_mint\",\"data\":[{{\"owner_id\":\"{}\",\"amount\":\"{}\"}}]}}",
@@ -117,17 +145,27 @@ impl WMobToken {
     /// # Arguments
     /// * `account_id` - Account to burn from
     /// * `amount` - Amount to burn in picoMOB
+    ///
+    /// # Security
+    /// Uses checked arithmetic to prevent integer underflow attacks.
     pub fn burn(&mut self, account_id: AccountId, amount: U128) {
         self.assert_not_paused();
         self.assert_bridge_only();
 
         let amount: Balance = amount.into();
+        assert!(amount > 0, "Amount must be positive");
 
         let current_balance = self.balances.get(&account_id).unwrap_or(0);
         assert!(current_balance >= amount, "Insufficient balance to burn");
 
-        self.balances.insert(&account_id, &(current_balance - amount));
-        self.total_supply -= amount;
+        // Use checked arithmetic to prevent underflow
+        let new_balance = current_balance.checked_sub(amount)
+            .expect("Balance underflow: burn would result in negative balance");
+        let new_supply = self.total_supply.checked_sub(amount)
+            .expect("Total supply underflow: burn would result in negative supply");
+
+        self.balances.insert(&account_id, &new_balance);
+        self.total_supply = new_supply;
 
         env::log_str(&format!(
             "EVENT_JSON:{{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_burn\",\"data\":[{{\"owner_id\":\"{}\",\"amount\":\"{}\"}}]}}",
@@ -297,6 +335,10 @@ impl WMobToken {
 
     // ==================== Internal Functions ====================
 
+    /// Internal transfer with checked arithmetic.
+    ///
+    /// # Security
+    /// Uses checked arithmetic to prevent overflow/underflow attacks.
     fn internal_transfer(
         &mut self,
         sender_id: &AccountId,
@@ -310,12 +352,19 @@ impl WMobToken {
         let sender_balance = self.balances.get(sender_id).unwrap_or(0);
         assert!(sender_balance >= amount, "Insufficient balance");
 
-        self.balances.insert(sender_id, &(sender_balance - amount));
+        // Use checked arithmetic for safe subtraction
+        let new_sender_balance = sender_balance.checked_sub(amount)
+            .expect("Balance underflow in transfer");
+        self.balances.insert(sender_id, &new_sender_balance);
 
+        // Use checked arithmetic for safe addition
         let receiver_balance = self.balances.get(receiver_id).unwrap_or(0);
-        self.balances.insert(receiver_id, &(receiver_balance + amount));
+        let new_receiver_balance = receiver_balance.checked_add(amount)
+            .expect("Balance overflow in transfer");
+        self.balances.insert(receiver_id, &new_receiver_balance);
 
-        let memo_str = memo.unwrap_or_default();
+        // Sanitize memo for safe JSON output
+        let memo_str = memo.map(|m| sanitize_memo(&m)).unwrap_or_default();
         env::log_str(&format!(
             "EVENT_JSON:{{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{{\"old_owner_id\":\"{}\",\"new_owner_id\":\"{}\",\"amount\":\"{}\",\"memo\":\"{}\"}}]}}",
             sender_id, receiver_id, amount, memo_str
