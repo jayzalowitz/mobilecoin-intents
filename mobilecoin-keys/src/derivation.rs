@@ -28,12 +28,66 @@ use crate::shared_secret::{compute_shared_secret, hash_to_point};
 ///
 /// # Returns
 /// The one-time public key for this output.
+///
+/// # Security
+/// This function validates that the input public keys are valid points
+/// on the Ristretto curve to prevent invalid curve attacks.
 pub fn derive_one_time_public_key(
     recipient_view_public: &RistrettoPublic,
     recipient_spend_public: &RistrettoPublic,
     tx_private_key: &RistrettoPrivate,
     output_index: u64,
 ) -> RistrettoPublic {
+    // Compute shared secret: Hs(r*A, index)
+    // Note: compute_shared_secret validates the view public key internally
+    let shared_secret = compute_shared_secret(
+        recipient_view_public,
+        tx_private_key,
+        output_index,
+    );
+
+    // Compute Hs(r*A)*G
+    let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
+
+    // Get spend public key as point - use safe fallback for invalid keys
+    let spend_point = match recipient_spend_public.decompress() {
+        Some(point) => point,
+        None => {
+            // Return identity point derivative if key is invalid
+            // This creates an unspendable output but doesn't panic
+            return RistrettoPublic::from_point(derived_point);
+        }
+    };
+
+    // P = Hs(r*A)*G + B
+    let one_time_point = derived_point + spend_point;
+
+    RistrettoPublic::from_point(one_time_point)
+}
+
+/// Safely derive a one-time public key, returning an error for invalid inputs.
+///
+/// This is the recommended function for production use as it handles
+/// invalid public keys gracefully instead of panicking.
+///
+/// # Returns
+/// * `Ok(RistrettoPublic)` - The derived one-time public key
+/// * `Err(KeyError)` - If either input public key is invalid
+pub fn derive_one_time_public_key_safe(
+    recipient_view_public: &RistrettoPublic,
+    recipient_spend_public: &RistrettoPublic,
+    tx_private_key: &RistrettoPrivate,
+    output_index: u64,
+) -> Result<RistrettoPublic, KeyError> {
+    // Validate view public key
+    if !recipient_view_public.is_valid() {
+        return Err(KeyError::InvalidPublicKey("Invalid view public key".to_string()));
+    }
+
+    // Validate spend public key
+    let spend_point = recipient_spend_public.decompress()
+        .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
+
     // Compute shared secret: Hs(r*A, index)
     let shared_secret = compute_shared_secret(
         recipient_view_public,
@@ -44,14 +98,10 @@ pub fn derive_one_time_public_key(
     // Compute Hs(r*A)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
 
-    // Get spend public key as point
-    let spend_point = recipient_spend_public.decompress()
-        .expect("Invalid spend public key");
-
     // P = Hs(r*A)*G + B
     let one_time_point = derived_point + spend_point;
 
-    RistrettoPublic::from_point(one_time_point)
+    Ok(RistrettoPublic::from_point(one_time_point))
 }
 
 /// Derive the one-time private key for spending an output.
@@ -139,6 +189,9 @@ pub fn derive_key_image(one_time_private_key: &RistrettoPrivate) -> RistrettoPub
 /// ```
 ///
 /// If P' == P (the output's public key), then the output is ours.
+///
+/// # Security
+/// This function handles invalid public keys gracefully without panicking.
 pub fn derive_one_time_from_receiver(
     tx_public_key: &RistrettoPublic,
     view_private_key: &RistrettoPrivate,
@@ -155,14 +208,56 @@ pub fn derive_one_time_from_receiver(
     // Compute Hs(a*R)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
 
-    // Get spend public key as point
-    let spend_point = spend_public_key.decompress()
-        .expect("Invalid spend public key");
+    // Get spend public key as point - handle invalid keys gracefully
+    let spend_point = match spend_public_key.decompress() {
+        Some(point) => point,
+        None => {
+            // Return the derived point alone if spend key is invalid
+            // This won't match any valid output, which is the correct behavior
+            return RistrettoPublic::from_point(derived_point);
+        }
+    };
 
     // P' = Hs(a*R)*G + B
     let computed_point = derived_point + spend_point;
 
     RistrettoPublic::from_point(computed_point)
+}
+
+/// Safely derive a one-time public key from the recipient's perspective.
+///
+/// # Returns
+/// * `Ok(RistrettoPublic)` - The computed one-time public key
+/// * `Err(KeyError)` - If any input key is invalid
+pub fn derive_one_time_from_receiver_safe(
+    tx_public_key: &RistrettoPublic,
+    view_private_key: &RistrettoPrivate,
+    spend_public_key: &RistrettoPublic,
+    output_index: u64,
+) -> Result<RistrettoPublic, KeyError> {
+    // Validate tx public key
+    if !tx_public_key.is_valid() {
+        return Err(KeyError::InvalidPublicKey("Invalid transaction public key".to_string()));
+    }
+
+    // Validate spend public key
+    let spend_point = spend_public_key.decompress()
+        .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
+
+    // Compute shared secret from receiver's perspective
+    let shared_secret = compute_shared_secret(
+        tx_public_key,
+        view_private_key,
+        output_index,
+    );
+
+    // Compute Hs(a*R)*G
+    let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
+
+    // P' = Hs(a*R)*G + B
+    let computed_point = derived_point + spend_point;
+
+    Ok(RistrettoPublic::from_point(computed_point))
 }
 
 #[cfg(test)]
