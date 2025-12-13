@@ -1,0 +1,21 @@
+[package]
+name = "wmob-token"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Wrapped MobileCoin (wMOB) NEP-141 fungible token contract"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk.workspace = true
+serde.workspace = true
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

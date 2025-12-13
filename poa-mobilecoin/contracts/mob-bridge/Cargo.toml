@@ -1,0 +1,23 @@
+[package]
+name = "mob-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Proof of Authority bridge for MobileCoin (MOB) to NEAR"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk.workspace = true
+serde.workspace = true
+hex.workspace = true
+sha2.workspace = true
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
