@@ -3,9 +3,9 @@
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
-use sha3::{Sha3_256, Digest};
+use sha3::{Digest, Sha3_256};
 
-use crate::{RistrettoPublic, RistrettoPrivate};
+use crate::{RistrettoPrivate, RistrettoPublic};
 
 /// Domain separator for shared secret derivation.
 const SHARED_SECRET_DOMAIN: &[u8] = b"mc_shared_secret";
@@ -30,8 +30,7 @@ pub fn compute_shared_secret(
     output_index: u64,
 ) -> Scalar {
     // Decompress the public key
-    let point = public_key.decompress()
-        .expect("Invalid public key");
+    let point = public_key.decompress().expect("Invalid public key");
 
     // Compute DH: private_key * public_key
     let dh_point = private_key.as_scalar() * point;

@@ -19,7 +19,10 @@ fn test_full_transaction_flow() {
         &tx_key.private_key,
         0,
     );
-    println!("One-time public key derived: {:?}", one_time_public.to_hex());
+    println!(
+        "One-time public key derived: {:?}",
+        one_time_public.to_hex()
+    );
 
     // 4. Recipient scans for output
     let is_ours = check_output_ownership(
@@ -133,11 +136,7 @@ fn test_multi_recipient_transaction() {
         2,
     );
 
-    let all_outputs = vec![
-        (output1, 0u64),
-        (output2, 1u64),
-        (output3, 2u64),
-    ];
+    let all_outputs = vec![(output1, 0u64), (output2, 1u64), (output3, 2u64)];
 
     // Recipient1 should only find output 0
     let owned1 = scan_outputs_for_ownership(
@@ -261,7 +260,7 @@ fn test_serialization_roundtrip() {
 
 mod security_tests {
     use super::*;
-    use crate::derivation::{derive_one_time_public_key_safe, derive_one_time_from_receiver_safe};
+    use crate::derivation::{derive_one_time_from_receiver_safe, derive_one_time_public_key_safe};
 
     /// Test that safe derivation functions properly handle invalid public keys.
     #[test]
@@ -281,21 +280,14 @@ mod security_tests {
         let valid_key = RistrettoPrivate::generate().public_key();
         let tx_private = RistrettoPrivate::generate();
 
-        let result = derive_one_time_public_key_safe(
-            &invalid_key,
-            &valid_key,
-            &tx_private,
-            0,
-        );
+        let result = derive_one_time_public_key_safe(&invalid_key, &valid_key, &tx_private, 0);
         assert!(result.is_err(), "Should return error for invalid view key");
 
-        let result2 = derive_one_time_public_key_safe(
-            &valid_key,
-            &invalid_key,
-            &tx_private,
-            0,
+        let result2 = derive_one_time_public_key_safe(&valid_key, &invalid_key, &tx_private, 0);
+        assert!(
+            result2.is_err(),
+            "Should return error for invalid spend key"
         );
-        assert!(result2.is_err(), "Should return error for invalid spend key");
     }
 
     /// Test that the standard derivation function handles invalid keys gracefully.
@@ -308,12 +300,7 @@ mod security_tests {
         let tx_private = RistrettoPrivate::generate();
 
         // This should NOT panic, even with invalid input
-        let result = derive_one_time_public_key(
-            &invalid_key,
-            &valid_key,
-            &tx_private,
-            0,
-        );
+        let result = derive_one_time_public_key(&invalid_key, &valid_key, &tx_private, 0);
 
         // The result should still be a valid-ish point (derived deterministically)
         // We just verify it doesn't crash
@@ -324,9 +311,7 @@ mod security_tests {
     #[test]
     fn test_private_key_randomness() {
         // Generate 100 keys and check for uniqueness
-        let keys: Vec<_> = (0..100)
-            .map(|_| RistrettoPrivate::generate())
-            .collect();
+        let keys: Vec<_> = (0..100).map(|_| RistrettoPrivate::generate()).collect();
 
         // All keys should be unique
         for i in 0..keys.len() {
@@ -335,7 +320,8 @@ mod security_tests {
                     keys[i].to_bytes(),
                     keys[j].to_bytes(),
                     "Keys {} and {} should be different",
-                    i, j
+                    i,
+                    j
                 );
             }
         }
@@ -424,7 +410,10 @@ mod security_tests {
         let key_image1 = derive_key_image(&one_time_private);
         let key_image2 = derive_key_image(&one_time_private);
 
-        assert_eq!(key_image1, key_image2, "Same spending key should produce same key image");
+        assert_eq!(
+            key_image1, key_image2,
+            "Same spending key should produce same key image"
+        );
     }
 
     /// Test NEAR Intents settlement verification with wrong intent ID.
@@ -479,7 +468,10 @@ mod security_tests {
         let (refund_key, refund_tx) = generate_refund_address(&address, intent_id);
 
         // Settlement and refund should have different keys
-        assert_ne!(settlement_key, refund_key, "Settlement and refund keys must differ");
+        assert_ne!(
+            settlement_key, refund_key,
+            "Settlement and refund keys must differ"
+        );
         assert_ne!(
             settlement_tx.public_key, refund_tx.public_key,
             "Settlement and refund tx keys must differ"
@@ -490,7 +482,9 @@ mod security_tests {
     #[test]
     fn test_invalid_hex_parsing() {
         // Invalid hex characters
-        let result = RistrettoPublic::from_hex("gg00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff");
+        let result = RistrettoPublic::from_hex(
+            "gg00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+        );
         assert!(result.is_err(), "Invalid hex should fail");
 
         // Wrong length

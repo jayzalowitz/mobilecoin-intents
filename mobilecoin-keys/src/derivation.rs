@@ -4,8 +4,8 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use crate::{RistrettoPublic, RistrettoPrivate, TxKey, KeyError};
 use crate::shared_secret::{compute_shared_secret, hash_to_point};
+use crate::{KeyError, RistrettoPrivate, RistrettoPublic, TxKey};
 
 /// Derive a one-time public key for a transaction output.
 ///
@@ -40,11 +40,7 @@ pub fn derive_one_time_public_key(
 ) -> RistrettoPublic {
     // Compute shared secret: Hs(r*A, index)
     // Note: compute_shared_secret validates the view public key internally
-    let shared_secret = compute_shared_secret(
-        recipient_view_public,
-        tx_private_key,
-        output_index,
-    );
+    let shared_secret = compute_shared_secret(recipient_view_public, tx_private_key, output_index);
 
     // Compute Hs(r*A)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
@@ -81,19 +77,18 @@ pub fn derive_one_time_public_key_safe(
 ) -> Result<RistrettoPublic, KeyError> {
     // Validate view public key
     if !recipient_view_public.is_valid() {
-        return Err(KeyError::InvalidPublicKey("Invalid view public key".to_string()));
+        return Err(KeyError::InvalidPublicKey(
+            "Invalid view public key".to_string(),
+        ));
     }
 
     // Validate spend public key
-    let spend_point = recipient_spend_public.decompress()
+    let spend_point = recipient_spend_public
+        .decompress()
         .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
 
     // Compute shared secret: Hs(r*A, index)
-    let shared_secret = compute_shared_secret(
-        recipient_view_public,
-        tx_private_key,
-        output_index,
-    );
+    let shared_secret = compute_shared_secret(recipient_view_public, tx_private_key, output_index);
 
     // Compute Hs(r*A)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
@@ -131,11 +126,7 @@ pub fn derive_one_time_private_key(
     output_index: u64,
 ) -> RistrettoPrivate {
     // Compute shared secret: Hs(a*R, index)
-    let shared_secret = compute_shared_secret(
-        tx_public_key,
-        view_private_key,
-        output_index,
-    );
+    let shared_secret = compute_shared_secret(tx_public_key, view_private_key, output_index);
 
     // p = Hs(a*R) + b
     let one_time_scalar = shared_secret + spend_private_key.as_scalar();
@@ -199,11 +190,7 @@ pub fn derive_one_time_from_receiver(
     output_index: u64,
 ) -> RistrettoPublic {
     // Compute shared secret from receiver's perspective
-    let shared_secret = compute_shared_secret(
-        tx_public_key,
-        view_private_key,
-        output_index,
-    );
+    let shared_secret = compute_shared_secret(tx_public_key, view_private_key, output_index);
 
     // Compute Hs(a*R)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;
@@ -237,19 +224,18 @@ pub fn derive_one_time_from_receiver_safe(
 ) -> Result<RistrettoPublic, KeyError> {
     // Validate tx public key
     if !tx_public_key.is_valid() {
-        return Err(KeyError::InvalidPublicKey("Invalid transaction public key".to_string()));
+        return Err(KeyError::InvalidPublicKey(
+            "Invalid transaction public key".to_string(),
+        ));
     }
 
     // Validate spend public key
-    let spend_point = spend_public_key.decompress()
+    let spend_point = spend_public_key
+        .decompress()
         .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
 
     // Compute shared secret from receiver's perspective
-    let shared_secret = compute_shared_secret(
-        tx_public_key,
-        view_private_key,
-        output_index,
-    );
+    let shared_secret = compute_shared_secret(tx_public_key, view_private_key, output_index);
 
     // Compute Hs(a*R)*G
     let derived_point = RISTRETTO_BASEPOINT_TABLE.basepoint() * shared_secret;

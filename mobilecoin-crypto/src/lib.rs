@@ -30,17 +30,19 @@
 //! }
 //! ```
 
-mod types;
-mod signature;
-mod payload;
-mod hash;
 mod error;
+mod hash;
+mod payload;
+mod signature;
+mod types;
 
-pub use types::{MobPublicKey, MobSignature, MobSignedPayload, MobKeyPair};
-pub use signature::{verify_mob_signature, verify_mob_signature_with_domain, sign_message, MOB_INTENT_DOMAIN};
-pub use payload::{MobPayload, Payload, SignedPayload, SignedMobPayload};
-pub use hash::{hash_message_for_signing, create_signable_message};
 pub use error::CryptoError;
+pub use hash::{create_signable_message, hash_message_for_signing};
+pub use payload::{MobPayload, Payload, SignedMobPayload, SignedPayload};
+pub use signature::{
+    sign_message, verify_mob_signature, verify_mob_signature_with_domain, MOB_INTENT_DOMAIN,
+};
+pub use types::{MobKeyPair, MobPublicKey, MobSignature, MobSignedPayload};
 
 #[cfg(test)]
 mod tests;

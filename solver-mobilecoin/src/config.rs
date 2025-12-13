@@ -34,8 +34,7 @@ impl SolverConfig {
     /// Load configuration from environment variables.
     pub fn from_env() -> Result<Self, ConfigError> {
         Ok(Self {
-            solver_id: env::var("SOLVER_ID")
-                .unwrap_or_else(|_| "mob-solver-1".to_string()),
+            solver_id: env::var("SOLVER_ID").unwrap_or_else(|_| "mob-solver-1".to_string()),
             solver_bus_url: env::var("SOLVER_BUS_URL")
                 .unwrap_or_else(|_| "wss://solver-bus.near-intents.org".to_string()),
             near_rpc_url: env::var("NEAR_RPC_URL")

@@ -27,8 +27,8 @@ impl RistrettoPublic {
 
     /// Create from hex string.
     pub fn from_hex(hex_str: &str) -> Result<Self, crate::AddressError> {
-        let bytes = hex::decode(hex_str)
-            .map_err(|e| crate::AddressError::InvalidBase58(e.to_string()))?;
+        let bytes =
+            hex::decode(hex_str).map_err(|e| crate::AddressError::InvalidBase58(e.to_string()))?;
 
         if bytes.len() != 32 {
             return Err(crate::AddressError::InvalidLength {
@@ -123,11 +123,7 @@ pub struct FogInfo {
 
 impl FogInfo {
     /// Create new Fog info.
-    pub fn new(
-        fog_report_url: String,
-        fog_report_id: String,
-        fog_authority_spki: Vec<u8>,
-    ) -> Self {
+    pub fn new(fog_report_url: String, fog_report_id: String, fog_authority_spki: Vec<u8>) -> Self {
         Self {
             fog_report_url,
             fog_report_id,
@@ -221,8 +217,14 @@ mod tests {
         assert_eq!(MobNetwork::Mainnet.version_byte(), 0x00);
         assert_eq!(MobNetwork::Testnet.version_byte(), 0x01);
 
-        assert_eq!(MobNetwork::from_version_byte(0x00), Some(MobNetwork::Mainnet));
-        assert_eq!(MobNetwork::from_version_byte(0x01), Some(MobNetwork::Testnet));
+        assert_eq!(
+            MobNetwork::from_version_byte(0x00),
+            Some(MobNetwork::Mainnet)
+        );
+        assert_eq!(
+            MobNetwork::from_version_byte(0x01),
+            Some(MobNetwork::Testnet)
+        );
         assert_eq!(MobNetwork::from_version_byte(0x02), None);
     }
 

@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo check
+        run: cargo check -p mobilecoin-crypto -p mobilecoin-address -p mobilecoin-keys -p solver-mobilecoin
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test -p mobilecoin-crypto -p mobilecoin-address -p mobilecoin-keys -p solver-mobilecoin
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Run clippy
+        run: cargo clippy -p mobilecoin-crypto -p mobilecoin-address -p mobilecoin-keys -p solver-mobilecoin -- -W clippy::all
+
+  # TODO: Build NEAR contracts with wasm32 target
+  # Disabled until contracts are updated for latest NEAR SDK
+  # See: https://github.com/jayzalowitz/mobilecoin-intents/issues/11
+  # build-contracts:
+  #   name: Build Contracts
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         targets: wasm32-unknown-unknown
+  #     - uses: Swatinem/rust-cache@v2
+  #     - name: Build wMOB token contract
+  #       run: cargo build --target wasm32-unknown-unknown --release -p wmob-token
+  #     - name: Build MOB bridge contract
+  #       run: cargo build --target wasm32-unknown-unknown --release -p mob-bridge

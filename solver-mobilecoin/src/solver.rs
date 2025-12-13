@@ -1,17 +1,17 @@
 //! Main solver implementation.
 
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use futures::{SinkExt, StreamExt};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use serde::{Deserialize, Serialize};
 
 use crate::config::SolverConfig;
 use crate::error::SolverError;
-use crate::quote::{QuoteRequest, QuoteResponse, generate_quote};
 use crate::liquidity::LiquidityManager;
 use crate::price_feed::PriceFeed;
+use crate::quote::{generate_quote, QuoteRequest, QuoteResponse};
 
 /// Messages on the solver bus.
 #[derive(Debug, Serialize, Deserialize)]
@@ -22,11 +22,18 @@ pub enum SolverBusMessage {
     /// Quote response from solver.
     QuoteResponse(QuoteResponse),
     /// Intent assigned to solver.
-    IntentAssigned { intent_id: String, solver_id: String },
+    IntentAssigned {
+        intent_id: String,
+        solver_id: String,
+    },
     /// Settlement request.
     SettleRequest { intent_id: String },
     /// Settlement result.
-    SettleResult { intent_id: String, success: bool, tx_hash: Option<String> },
+    SettleResult {
+        intent_id: String,
+        success: bool,
+        tx_hash: Option<String>,
+    },
     /// Ping for keepalive.
     Ping,
     /// Pong response.
@@ -70,18 +77,16 @@ impl MobSolver {
         // Main message loop
         while let Some(msg) = read.next().await {
             match msg {
-                Ok(Message::Text(text)) => {
-                    match serde_json::from_str::<SolverBusMessage>(&text) {
-                        Ok(bus_msg) => {
-                            if let Err(e) = self.handle_message(bus_msg, &mut write).await {
-                                log::error!("Error handling message: {}", e);
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to parse message: {}", e);
+                Ok(Message::Text(text)) => match serde_json::from_str::<SolverBusMessage>(&text) {
+                    Ok(bus_msg) => {
+                        if let Err(e) = self.handle_message(bus_msg, &mut write).await {
+                            log::error!("Error handling message: {}", e);
                         }
                     }
-                }
+                    Err(e) => {
+                        log::warn!("Failed to parse message: {}", e);
+                    }
+                },
                 Ok(Message::Ping(data)) => {
                     if let Err(e) = write.send(Message::Pong(data)).await {
                         log::error!("Failed to send pong: {}", e);
@@ -122,12 +127,7 @@ impl MobSolver {
                     let liquidity = self.liquidity.read().await;
                     let price_feed = self.price_feed.read().await;
 
-                    match generate_quote(
-                        &request,
-                        &self.config,
-                        &liquidity,
-                        &price_feed,
-                    ).await {
+                    match generate_quote(&request, &self.config, &liquidity, &price_feed).await {
                         Ok(quote) => {
                             // Store pending quote
                             self.pending_quotes
@@ -136,8 +136,9 @@ impl MobSolver {
                                 .insert(request.intent_id.clone(), quote.clone());
 
                             // Send quote
-                            let msg = serde_json::to_string(&SolverBusMessage::QuoteResponse(quote))
-                                .map_err(|e| SolverError::InvalidMessage(e.to_string()))?;
+                            let msg =
+                                serde_json::to_string(&SolverBusMessage::QuoteResponse(quote))
+                                    .map_err(|e| SolverError::InvalidMessage(e.to_string()))?;
 
                             write
                                 .send(Message::Text(msg))
@@ -151,15 +152,15 @@ impl MobSolver {
                 }
             }
 
-            SolverBusMessage::IntentAssigned { intent_id, solver_id } => {
+            SolverBusMessage::IntentAssigned {
+                intent_id,
+                solver_id,
+            } => {
                 if solver_id == self.config.solver_id {
                     log::info!("Intent {} assigned to us!", intent_id);
 
                     // Get the pending quote
-                    let quote = self.pending_quotes
-                        .write()
-                        .await
-                        .remove(&intent_id);
+                    let quote = self.pending_quotes.write().await.remove(&intent_id);
 
                     if let Some(quote) = quote {
                         // Execute settlement

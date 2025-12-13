@@ -97,13 +97,13 @@ impl RistrettoPublic {
 
     /// Create from hex string.
     pub fn from_hex(hex_str: &str) -> Result<Self, crate::KeyError> {
-        let bytes = hex::decode(hex_str)
-            .map_err(|e| crate::KeyError::InvalidKey(e.to_string()))?;
+        let bytes = hex::decode(hex_str).map_err(|e| crate::KeyError::InvalidKey(e.to_string()))?;
 
         if bytes.len() != 32 {
-            return Err(crate::KeyError::InvalidKey(
-                format!("Expected 32 bytes, got {}", bytes.len())
-            ));
+            return Err(crate::KeyError::InvalidKey(format!(
+                "Expected 32 bytes, got {}",
+                bytes.len()
+            )));
         }
 
         let mut arr = [0u8; 32];
@@ -143,13 +143,19 @@ impl ViewKeyPair {
     pub fn generate() -> Self {
         let private_key = RistrettoPrivate::generate();
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 
     /// Create from a private key.
     pub fn from_private(private_key: RistrettoPrivate) -> Self {
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 }
 
@@ -174,13 +180,19 @@ impl SpendKeyPair {
     pub fn generate() -> Self {
         let private_key = RistrettoPrivate::generate();
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 
     /// Create from a private key.
     pub fn from_private(private_key: RistrettoPrivate) -> Self {
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 }
 
@@ -211,7 +223,10 @@ impl WalletKeys {
 
     /// Create from existing key pairs.
     pub fn new(view_key_pair: ViewKeyPair, spend_key_pair: SpendKeyPair) -> Self {
-        Self { view_key_pair, spend_key_pair }
+        Self {
+            view_key_pair,
+            spend_key_pair,
+        }
     }
 
     /// Get the public view key.
@@ -247,13 +262,19 @@ impl TxKey {
     pub fn generate() -> Self {
         let private_key = RistrettoPrivate::generate();
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 
     /// Create from a private key.
     pub fn from_private(private_key: RistrettoPrivate) -> Self {
         let public_key = private_key.public_key();
-        Self { private_key, public_key }
+        Self {
+            private_key,
+            public_key,
+        }
     }
 }
 

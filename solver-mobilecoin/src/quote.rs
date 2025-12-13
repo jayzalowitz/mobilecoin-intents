@@ -1,7 +1,7 @@
 //! Quote generation for MOB intents.
 
-use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 use crate::config::SolverConfig;
 use crate::error::SolverError;

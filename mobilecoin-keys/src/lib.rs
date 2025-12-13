@@ -40,30 +40,23 @@
 //! );
 //! ```
 
-mod types;
 mod derivation;
+mod error;
+mod near_intents;
 mod ownership;
 mod shared_secret;
-mod near_intents;
-mod error;
+mod types;
 
-pub use types::{
-    ViewKeyPair, SpendKeyPair, WalletKeys, TxKey,
-    RistrettoPrivate, RistrettoPublic,
-};
 pub use derivation::{
-    derive_one_time_public_key, derive_one_time_private_key,
-    generate_tx_key, derive_key_image,
-};
-pub use ownership::{
-    check_output_ownership, scan_outputs_for_ownership, OwnedOutput,
-};
-pub use shared_secret::{compute_shared_secret, hash_to_scalar};
-pub use near_intents::{
-    generate_settlement_address, verify_settlement_address,
-    generate_refund_address,
+    derive_key_image, derive_one_time_private_key, derive_one_time_public_key, generate_tx_key,
 };
 pub use error::KeyError;
+pub use near_intents::{
+    generate_refund_address, generate_settlement_address, verify_settlement_address,
+};
+pub use ownership::{check_output_ownership, scan_outputs_for_ownership, OwnedOutput};
+pub use shared_secret::{compute_shared_secret, hash_to_scalar};
+pub use types::{RistrettoPrivate, RistrettoPublic, SpendKeyPair, TxKey, ViewKeyPair, WalletKeys};
 
 #[cfg(test)]
 mod tests;

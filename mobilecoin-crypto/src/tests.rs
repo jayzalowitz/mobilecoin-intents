@@ -124,7 +124,10 @@ fn test_signed_payload_serialization() {
 
     // All fields should match
     assert_eq!(signed.payload.intent_id, recovered.payload.intent_id);
-    assert_eq!(signed.payload.source_amount, recovered.payload.source_amount);
+    assert_eq!(
+        signed.payload.source_amount,
+        recovered.payload.source_amount
+    );
     assert_eq!(signed.public_key, recovered.public_key);
     assert_eq!(signed.signature, recovered.signature);
 }

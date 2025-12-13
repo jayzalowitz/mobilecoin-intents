@@ -43,16 +43,20 @@ impl SettlementExecutor {
 
         match settlement_type {
             SettlementType::MobToWmob => {
-                self.execute_mob_to_wmob(intent_id, amount, dest_address).await
+                self.execute_mob_to_wmob(intent_id, amount, dest_address)
+                    .await
             }
             SettlementType::WmobToMob => {
-                self.execute_wmob_to_mob(intent_id, amount, dest_address).await
+                self.execute_wmob_to_mob(intent_id, amount, dest_address)
+                    .await
             }
             SettlementType::WmobToOther { dest_asset } => {
-                self.execute_wmob_to_other(intent_id, amount, dest_address, &dest_asset).await
+                self.execute_wmob_to_other(intent_id, amount, dest_address, &dest_asset)
+                    .await
             }
             SettlementType::OtherToWmob { source_asset } => {
-                self.execute_other_to_wmob(intent_id, amount, dest_address, &source_asset).await
+                self.execute_other_to_wmob(intent_id, amount, dest_address, &source_asset)
+                    .await
             }
         }
     }
@@ -105,7 +109,11 @@ impl SettlementExecutor {
 
         log::info!("wMOB→{}: Swapping on DEX", dest_asset);
 
-        Ok(format!("wmob_to_{}_{}", dest_asset.to_lowercase(), intent_id))
+        Ok(format!(
+            "wmob_to_{}_{}",
+            dest_asset.to_lowercase(),
+            intent_id
+        ))
     }
 
     async fn execute_other_to_wmob(
@@ -122,6 +130,10 @@ impl SettlementExecutor {
 
         log::info!("{}→wMOB: Swapping on DEX", source_asset);
 
-        Ok(format!("{}_to_wmob_{}", source_asset.to_lowercase(), intent_id))
+        Ok(format!(
+            "{}_to_wmob_{}",
+            source_asset.to_lowercase(),
+            intent_id
+        ))
     }
 }

@@ -1,8 +1,8 @@
 //! NEAR Intents integration for one-time key derivation.
 
-use crate::{RistrettoPublic, RistrettoPrivate, TxKey, KeyError};
-use crate::derivation::{derive_one_time_public_key, derive_one_time_from_receiver};
+use crate::derivation::{derive_one_time_from_receiver, derive_one_time_public_key};
 use crate::shared_secret::hash_to_scalar;
+use crate::{KeyError, RistrettoPrivate, RistrettoPublic, TxKey};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
 use mobilecoin_address::MobAddress;
 
@@ -71,12 +71,8 @@ pub fn verify_settlement_address(
     let view_public = RistrettoPublic::from(recipient_address.view_public_key);
     let spend_public = RistrettoPublic::from(recipient_address.spend_public_key);
 
-    let expected_one_time = derive_one_time_public_key(
-        &view_public,
-        &spend_public,
-        &expected_tx_key.private_key,
-        0,
-    );
+    let expected_one_time =
+        derive_one_time_public_key(&view_public, &spend_public, &expected_tx_key.private_key, 0);
 
     // Verify they match
     expected_one_time == *output_public_key
@@ -103,12 +99,8 @@ pub fn generate_refund_address(
     let view_public = RistrettoPublic::from(sender_address.view_public_key);
     let spend_public = RistrettoPublic::from(sender_address.spend_public_key);
 
-    let one_time_public = derive_one_time_public_key(
-        &view_public,
-        &spend_public,
-        &tx_key.private_key,
-        0,
-    );
+    let one_time_public =
+        derive_one_time_public_key(&view_public, &spend_public, &tx_key.private_key, 0);
 
     (one_time_public, tx_key)
 }
@@ -145,8 +137,8 @@ pub fn generate_output_id(intent_id: &str, output_type: &str, output_index: u64)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mobilecoin_address::{MobNetwork, RistrettoPublic as AddrRistrettoPublic};
     use curve25519_dalek::scalar::Scalar;
+    use mobilecoin_address::{MobNetwork, RistrettoPublic as AddrRistrettoPublic};
     use rand::RngCore;
 
     /// Generate a valid Ristretto public key (on the curve) for mobilecoin_address.

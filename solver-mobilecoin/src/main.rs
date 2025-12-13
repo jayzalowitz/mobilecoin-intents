@@ -7,16 +7,16 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-mod solver;
-mod quote;
-mod settlement;
-mod price_feed;
-mod liquidity;
 mod config;
 mod error;
+mod liquidity;
+mod price_feed;
+mod quote;
+mod settlement;
+mod solver;
 
-use solver::MobSolver;
 use config::SolverConfig;
+use solver::MobSolver;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
