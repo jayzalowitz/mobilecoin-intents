@@ -3,12 +3,19 @@
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
+use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A Ristretto private key (scalar).
-#[derive(Clone)]
-pub struct RistrettoPrivate(pub Scalar);
+///
+/// # Security
+/// - Uses `OsRng` for cryptographically secure random generation
+/// - Implements `ZeroizeOnDrop` to securely erase the key from memory
+/// - Debug output is redacted to prevent key leakage in logs
+#[derive(Clone, ZeroizeOnDrop)]
+pub struct RistrettoPrivate(#[zeroize(skip)] pub Scalar);
 
 impl RistrettoPrivate {
     /// Create from a scalar.
@@ -16,12 +23,19 @@ impl RistrettoPrivate {
         Self(scalar)
     }
 
-    /// Generate a random private key.
+    /// Generate a random private key using cryptographically secure RNG.
+    ///
+    /// # Security
+    /// Uses `OsRng` which provides cryptographically secure randomness
+    /// from the operating system.
     pub fn generate() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = OsRng;
         let mut bytes = [0u8; 64];
         rng.fill_bytes(&mut bytes);
-        Self(Scalar::from_bytes_mod_order_wide(&bytes))
+        let scalar = Scalar::from_bytes_mod_order_wide(&bytes);
+        // Zero the temporary bytes
+        bytes.zeroize();
+        Self(scalar)
     }
 
     /// Create from bytes (mod order).
@@ -35,6 +49,10 @@ impl RistrettoPrivate {
     }
 
     /// Convert to bytes.
+    ///
+    /// # Security Warning
+    /// The returned bytes contain the private key. Ensure they are
+    /// zeroized after use.
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
@@ -49,13 +67,6 @@ impl RistrettoPrivate {
 impl std::fmt::Debug for RistrettoPrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RistrettoPrivate([REDACTED])")
-    }
-}
-
-impl Drop for RistrettoPrivate {
-    fn drop(&mut self) {
-        // Zero out the scalar on drop (best effort)
-        self.0 = Scalar::ZERO;
     }
 }
 

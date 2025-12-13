@@ -9,6 +9,10 @@ pub enum KeyError {
     #[error("Invalid key: {0}")]
     InvalidKey(String),
 
+    /// Invalid public key.
+    #[error("Invalid public key: {0}")]
+    InvalidPublicKey(String),
+
     /// The point is not on the curve.
     #[error("Point not on curve")]
     InvalidPoint,
