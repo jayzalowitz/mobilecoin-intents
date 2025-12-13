@@ -1,3 +1,8 @@
+---
+layout: default
+title: Architecture
+---
+
 # MobileCoin Integration Architecture
 
 ## Overview
