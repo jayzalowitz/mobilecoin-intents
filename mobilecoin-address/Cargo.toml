@@ -1,0 +1,17 @@
+[package]
+name = "mobilecoin-address"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MobileCoin address parsing and validation for NEAR Intents"
+
+[dependencies]
+curve25519-dalek.workspace = true
+bs58.workspace = true
+sha2.workspace = true
+serde.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

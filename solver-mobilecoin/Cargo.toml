@@ -1,0 +1,29 @@
+[package]
+name = "solver-mobilecoin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MobileCoin solver for NEAR Intents"
+
+[[bin]]
+name = "mob-solver"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+rust_decimal.workspace = true
+log.workspace = true
+env_logger.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+hex.workspace = true
+
+mobilecoin-crypto = { path = "../mobilecoin-crypto" }
+mobilecoin-address = { path = "../mobilecoin-address" }
+mobilecoin-keys = { path = "../mobilecoin-keys" }

@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = [
+    "mobilecoin-crypto",
+    "mobilecoin-address",
+    "mobilecoin-keys",
+    "poa-mobilecoin/contracts/wmob-token",
+    "poa-mobilecoin/contracts/mob-bridge",
+    "defuse-mobilecoin",
+    "solver-mobilecoin",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jayzalowitz/mobilecoin-intents"
+
+[workspace.dependencies]
+# Cryptography
+ed25519-dalek = { version = "2.1", features = ["rand_core", "digest"] }
+curve25519-dalek = { version = "4.1", features = ["digest", "rand_core", "serde"] }
+sha2 = "0.10"
+sha3 = "0.10"
+rand_core = "0.6"
+rand = "0.8"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+bs58 = "0.5"
+borsh = "1.2"
+
+# NEAR SDK
+near-sdk = "5.5"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.21"
+futures = "0.3"
+async-trait = "0.1"
+
+# HTTP
+reqwest = { version = "0.11", features = ["json"] }
+
+# Utilities
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.10"
+chrono = "0.4"
+rust_decimal = "1.33"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
