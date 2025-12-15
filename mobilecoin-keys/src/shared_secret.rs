@@ -42,7 +42,8 @@ pub fn compute_shared_secret(
 /// Compute shared secret from a point and scalar directly.
 ///
 /// This is used when we already have the raw cryptographic values.
-pub fn compute_shared_secret_raw(
+#[cfg(test)]
+pub(crate) fn compute_shared_secret_raw(
     point: &RistrettoPoint,
     scalar: &Scalar,
     output_index: u64,
@@ -71,7 +72,7 @@ fn hash_to_scalar_with_index(point: &RistrettoPoint, index: u64) -> Scalar {
     let mut hasher = Sha3_256::new();
     hasher.update(SHARED_SECRET_DOMAIN);
     hasher.update(point.compress().as_bytes());
-    hasher.update(&index.to_le_bytes());
+    hasher.update(index.to_le_bytes());
     let hash = hasher.finalize();
 
     let mut bytes = [0u8; 32];

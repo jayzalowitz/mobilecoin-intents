@@ -18,9 +18,9 @@
 //! - All standard NEP-141 transfer safety checks apply
 
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LookupMap;
 use near_sdk::json_types::U128;
-use near_sdk::{env, near_bindgen, AccountId, Balance, PanicOnDefault, Promise, PromiseOrValue};
+use near_sdk::store::LookupMap;
+use near_sdk::{env, near_bindgen, AccountId, NearToken, PanicOnDefault, Promise, PromiseOrValue};
 use serde::{Deserialize, Serialize};
 
 /// Sanitize a string for safe JSON output.
@@ -72,9 +72,9 @@ impl Default for FungibleTokenMetadata {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct WMobToken {
     /// Token balances by account.
-    balances: LookupMap<AccountId, Balance>,
+    balances: LookupMap<AccountId, u128>,
     /// Total supply of wMOB tokens.
-    total_supply: Balance,
+    total_supply: u128,
     /// The bridge contract that can mint/burn.
     bridge_contract: AccountId,
     /// Token metadata.
@@ -120,10 +120,13 @@ impl WMobToken {
         self.assert_not_paused();
         self.assert_bridge_only();
 
-        let amount: Balance = amount.into();
+        let amount: u128 = amount.into();
         assert!(amount > 0, "Amount must be positive");
 
-        let current_balance = self.balances.get(&account_id).unwrap_or(0);
+        let current_balance = *self
+            .balances
+            .get(&account_id)
+            .expect("Account not registered");
 
         // Use checked arithmetic to prevent overflow
         let new_balance = current_balance
@@ -134,7 +137,7 @@ impl WMobToken {
             .checked_add(amount)
             .expect("Total supply overflow: mint would exceed maximum supply");
 
-        self.balances.insert(&account_id, &new_balance);
+        self.balances.insert(account_id.clone(), new_balance);
         self.total_supply = new_supply;
 
         env::log_str(&format!(
@@ -155,10 +158,13 @@ impl WMobToken {
         self.assert_not_paused();
         self.assert_bridge_only();
 
-        let amount: Balance = amount.into();
+        let amount: u128 = amount.into();
         assert!(amount > 0, "Amount must be positive");
 
-        let current_balance = self.balances.get(&account_id).unwrap_or(0);
+        let current_balance = *self
+            .balances
+            .get(&account_id)
+            .expect("Account not registered");
         assert!(current_balance >= amount, "Insufficient balance to burn");
 
         // Use checked arithmetic to prevent underflow
@@ -170,7 +176,7 @@ impl WMobToken {
             .checked_sub(amount)
             .expect("Total supply underflow: burn would result in negative supply");
 
-        self.balances.insert(&account_id, &new_balance);
+        self.balances.insert(account_id.clone(), new_balance);
         self.total_supply = new_supply;
 
         env::log_str(&format!(
@@ -192,12 +198,12 @@ impl WMobToken {
         self.assert_not_paused();
         assert_eq!(
             env::attached_deposit(),
-            1,
+            NearToken::from_yoctonear(1),
             "Requires attached deposit of exactly 1 yoctoNEAR"
         );
 
         let sender_id = env::predecessor_account_id();
-        let amount: Balance = amount.into();
+        let amount: u128 = amount.into();
 
         self.internal_transfer(&sender_id, &receiver_id, amount, memo);
     }
@@ -220,12 +226,12 @@ impl WMobToken {
         self.assert_not_paused();
         assert_eq!(
             env::attached_deposit(),
-            1,
+            NearToken::from_yoctonear(1),
             "Requires attached deposit of exactly 1 yoctoNEAR"
         );
 
         let sender_id = env::predecessor_account_id();
-        let amount: Balance = amount.into();
+        let amount: u128 = amount.into();
 
         self.internal_transfer(&sender_id, &receiver_id, amount, memo);
 
@@ -240,7 +246,7 @@ impl WMobToken {
                 })
                 .to_string()
                 .into_bytes(),
-                0,
+                NearToken::from_yoctonear(0),
                 near_sdk::Gas::from_tgas(30),
             )
             .then(
@@ -253,7 +259,7 @@ impl WMobToken {
                     })
                     .to_string()
                     .into_bytes(),
-                    0,
+                    NearToken::from_yoctonear(0),
                     near_sdk::Gas::from_tgas(10),
                 ),
             )
@@ -267,7 +273,7 @@ impl WMobToken {
 
     /// Get the balance of an account.
     pub fn ft_balance_of(&self, account_id: AccountId) -> U128 {
-        U128::from(self.balances.get(&account_id).unwrap_or(0))
+        U128::from(self.balances.get(&account_id).copied().unwrap_or(0))
     }
 
     // ==================== NEP-145 Storage Functions ====================
@@ -276,14 +282,14 @@ impl WMobToken {
     #[payable]
     pub fn storage_deposit(&mut self, account_id: Option<AccountId>) -> StorageBalance {
         let account = account_id.unwrap_or_else(env::predecessor_account_id);
-        let deposit = env::attached_deposit();
+        let deposit = env::attached_deposit().as_yoctonear();
         let min_balance = self.storage_balance_bounds().min.0;
 
         assert!(deposit >= min_balance, "Deposit too small");
 
         // Initialize balance if not exists
         if self.balances.get(&account).is_none() {
-            self.balances.insert(&account, &0);
+            self.balances.insert(account, 0);
         }
 
         StorageBalance {
@@ -295,7 +301,7 @@ impl WMobToken {
     /// Get storage balance bounds.
     pub fn storage_balance_bounds(&self) -> StorageBalanceBounds {
         // Minimal storage for one account entry
-        let min = 125 * env::storage_byte_cost();
+        let min = 125u128 * env::storage_byte_cost().as_yoctonear();
         StorageBalanceBounds {
             min: U128::from(min),
             max: Some(U128::from(min)),
@@ -349,7 +355,7 @@ impl WMobToken {
         &mut self,
         sender_id: &AccountId,
         receiver_id: &AccountId,
-        amount: Balance,
+        amount: u128,
         memo: Option<String>,
     ) {
         assert_ne!(
@@ -358,21 +364,25 @@ impl WMobToken {
         );
         assert!(amount > 0, "Amount must be positive");
 
-        let sender_balance = self.balances.get(sender_id).unwrap_or(0);
+        let sender_balance = *self.balances.get(sender_id).expect("Sender not registered");
         assert!(sender_balance >= amount, "Insufficient balance");
 
         // Use checked arithmetic for safe subtraction
         let new_sender_balance = sender_balance
             .checked_sub(amount)
             .expect("Balance underflow in transfer");
-        self.balances.insert(sender_id, &new_sender_balance);
+        self.balances.insert(sender_id.clone(), new_sender_balance);
 
         // Use checked arithmetic for safe addition
-        let receiver_balance = self.balances.get(receiver_id).unwrap_or(0);
+        let receiver_balance = *self
+            .balances
+            .get(receiver_id)
+            .expect("Receiver not registered");
         let new_receiver_balance = receiver_balance
             .checked_add(amount)
             .expect("Balance overflow in transfer");
-        self.balances.insert(receiver_id, &new_receiver_balance);
+        self.balances
+            .insert(receiver_id.clone(), new_receiver_balance);
 
         // Sanitize memo for safe JSON output
         let memo_str = memo.map(|m| sanitize_memo(&m)).unwrap_or_default();
@@ -410,7 +420,7 @@ impl WMobToken {
         receiver_id: AccountId,
         amount: U128,
     ) -> U128 {
-        let amount: Balance = amount.into();
+        let amount: u128 = amount.into();
 
         // Check the promise result
         let unused_amount = match env::promise_result(0) {
@@ -426,14 +436,19 @@ impl WMobToken {
 
         if unused_amount > 0 {
             // Refund unused tokens
-            let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0);
+            let receiver_balance = self.balances.get(&receiver_id).copied().unwrap_or(0);
             if receiver_balance >= unused_amount {
+                let new_receiver_balance = receiver_balance
+                    .checked_sub(unused_amount)
+                    .expect("Balance underflow in resolve transfer");
                 self.balances
-                    .insert(&receiver_id, &(receiver_balance - unused_amount));
+                    .insert(receiver_id.clone(), new_receiver_balance);
 
-                let sender_balance = self.balances.get(&sender_id).unwrap_or(0);
-                self.balances
-                    .insert(&sender_id, &(sender_balance + unused_amount));
+                let sender_balance = self.balances.get(&sender_id).copied().unwrap_or(0);
+                let new_sender_balance = sender_balance
+                    .checked_add(unused_amount)
+                    .expect("Balance overflow in resolve transfer");
+                self.balances.insert(sender_id.clone(), new_sender_balance);
             }
         }
 
@@ -463,7 +478,7 @@ mod tests {
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::testing_env;
 
-    fn get_context(predecessor: AccountId, deposit: Balance) -> near_sdk::VMContext {
+    fn get_context(predecessor: AccountId, deposit: NearToken) -> near_sdk::VMContext {
         VMContextBuilder::new()
             .predecessor_account_id(predecessor)
             .attached_deposit(deposit)
@@ -472,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_init() {
-        let context = get_context("owner.near".parse().unwrap(), 0);
+        let context = get_context("owner.near".parse().unwrap(), NearToken::from_yoctonear(0));
         testing_env!(context);
 
         let contract = WMobToken::new(
@@ -489,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_mint() {
-        let context = get_context("bridge.near".parse().unwrap(), 0);
+        let context = get_context("bridge.near".parse().unwrap(), NearToken::from_yoctonear(0));
         testing_env!(context);
 
         let mut contract = WMobToken::new(
@@ -497,6 +512,17 @@ mod tests {
             "owner.near".parse().unwrap(),
         );
 
+        // Register storage for alice (required for minting).
+        let min_storage = contract.storage_balance_bounds().min.0;
+        let context = get_context(
+            "bridge.near".parse().unwrap(),
+            NearToken::from_yoctonear(min_storage),
+        );
+        testing_env!(context);
+        contract.storage_deposit(Some("alice.near".parse().unwrap()));
+
+        let context = get_context("bridge.near".parse().unwrap(), NearToken::from_yoctonear(0));
+        testing_env!(context);
         contract.mint(
             "alice.near".parse().unwrap(),
             U128::from(1_000_000_000_000u128),
@@ -512,7 +538,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Only bridge can call this function")]
     fn test_mint_unauthorized() {
-        let context = get_context("hacker.near".parse().unwrap(), 0);
+        let context = get_context("hacker.near".parse().unwrap(), NearToken::from_yoctonear(0));
         testing_env!(context);
 
         let mut contract = WMobToken::new(

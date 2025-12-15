@@ -37,14 +37,13 @@ cargo build --release
 ### Build WASM Contracts
 
 ```bash
-# Install WASM target if needed
-rustup target add wasm32-unknown-unknown
+# Install cargo-near (recommended by near-sdk)
+cargo install cargo-near
 
 # Build contracts
-cargo build --release --target wasm32-unknown-unknown \
-    -p wmob-token \
-    -p mob-bridge \
-    -p defuse-mobilecoin
+cargo near build -p wmob-token
+cargo near build -p mob-bridge
+cargo near build -p defuse-mobilecoin
 ```
 
 ## Running Tests
@@ -115,70 +114,84 @@ let public_key = MobPublicKey::from_hex("...")?;
 let signature = MobSignature::from_hex("...")?;
 let message = b"Hello, MobileCoin!";
 
-let is_valid = verify_mob_signature(&public_key, message, &signature)?;
+let is_valid = verify_mob_signature(message, &signature, &public_key)?;
 ```
 
 ### Address Parsing
 
 ```rust
-use mobilecoin_address::MobAddress;
+use mobilecoin_address::parse_mob_address;
 
 let address_str = "..."; // Base58Check encoded
-let address = MobAddress::from_str(address_str)?;
+let address = parse_mob_address(address_str)?;
 
 // Access components
-let view_key = address.view_public_key();
-let spend_key = address.spend_public_key();
-let is_mainnet = address.is_mainnet();
+let view_key = address.view_public_key;
+let spend_key = address.spend_public_key;
+let network = address.network;
 ```
 
 ### Key Derivation
 
 ```rust
-use mobilecoin_keys::{WalletKeys, derive_one_time_public_key};
+use mobilecoin_keys::{derive_one_time_public_key, generate_tx_key, WalletKeys};
 
 // Generate stealth address
-let wallet = WalletKeys::random();
-let tx_key = TxKey::random();
+let wallet = WalletKeys::generate();
+let tx_key = generate_tx_key();
 let output_index = 0u64;
 
 let one_time_key = derive_one_time_public_key(
-    &wallet.view_public(),
-    &wallet.spend_public(),
-    &tx_key.public(),
+    &wallet.view_key_pair.public_key,
+    &wallet.spend_key_pair.public_key,
+    &tx_key.private_key,
     output_index,
-)?;
+);
 ```
 
 ## Deploying Contracts
 
+### Storage Registration (NEP-145)
+
+Accounts must register storage on the `wmob-token` contract before they can receive minted or transferred wMOB:
+
+```bash
+# Example: register yourself
+near call <wmob-token-account> storage_deposit '{"account_id": "<your.near>"}' --accountId <your.near> --deposit 0.01
+```
+
 ### Deploy wMOB Token
 
 ```bash
-# Build the contract
-cargo build --release --target wasm32-unknown-unknown -p wmob-token
+# Build the contract (prints the .wasm output path)
+cargo near build -p wmob-token
 
 # Deploy to NEAR
 near deploy wmob.testnet \
-    ./target/wasm32-unknown-unknown/release/wmob_token.wasm \
+    <PATH_TO_WMOB_WASM> \
     --initFunction new \
-    --initArgs '{"bridge_account_id": "bridge.testnet"}'
+    --initArgs '{"bridge_contract": "bridge.testnet", "owner": "owner.testnet"}'
 ```
 
 ### Deploy Bridge Contract
 
 ```bash
-# Build the contract
-cargo build --release --target wasm32-unknown-unknown -p mob-bridge
+# Build the contract (prints the .wasm output path)
+cargo near build -p mob-bridge
 
 # Deploy to NEAR
 near deploy bridge.testnet \
-    ./target/wasm32-unknown-unknown/release/mob_bridge.wasm \
+    <PATH_TO_MOB_BRIDGE_WASM> \
     --initFunction new \
     --initArgs '{
-        "token_account_id": "wmob.testnet",
-        "authority_threshold": 3,
-        "authorities": ["auth1.near", "auth2.near", "auth3.near", "auth4.near", "auth5.near"]
+        "wmob_token": "wmob.testnet",
+        "authorities": [
+            "ed25519:<PUBKEY1>",
+            "ed25519:<PUBKEY2>",
+            "ed25519:<PUBKEY3>"
+        ],
+        "threshold": 2,
+        "mob_custody_address": "<MOBILECOIN_CUSTODY_ADDRESS>"
     }'
 ```
 

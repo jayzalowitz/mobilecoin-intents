@@ -6,7 +6,7 @@ license.workspace = true
 description = "One-time key derivation for MobileCoin stealth addresses"
 
 [dependencies]
-curve25519-dalek.workspace = true
+curve25519-dalek = { workspace = true, features = ["rand_core"] }
 sha2.workspace = true
 sha3.workspace = true
 rand_core.workspace = true

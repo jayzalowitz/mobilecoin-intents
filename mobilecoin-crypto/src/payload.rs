@@ -1,7 +1,7 @@
 //! Payload traits for NEAR Intents integration.
 
 use crate::hash::create_swap_message;
-use crate::{verify_mob_signature, CryptoError, MobPublicKey, MobSignature, MobSignedPayload};
+use crate::{verify_mob_signature, CryptoError, MobPublicKey, MobSignature};
 use serde::{Deserialize, Serialize};
 
 /// Trait for payloads that can be signed.
@@ -54,6 +54,7 @@ pub struct MobPayload {
 
 impl MobPayload {
     /// Create a new MobileCoin intent payload.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         intent_id: String,
         source_asset: String,
@@ -77,6 +78,8 @@ impl MobPayload {
     }
 
     /// Create a signed version of this payload.
+    /// Only available with the "std" feature.
+    #[cfg(feature = "std")]
     pub fn sign(&self, key_pair: &crate::MobKeyPair) -> SignedMobPayload {
         let signable = self.signable_bytes();
         let signature = key_pair.sign(&signable);

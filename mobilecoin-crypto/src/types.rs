@@ -1,8 +1,10 @@
 //! Core cryptographic types for MobileCoin.
 
 use crate::error::CryptoError;
-use ed25519_dalek::{SecretKey, Signature, SigningKey, VerifyingKey};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "std")]
+use ed25519_dalek::{SecretKey, SigningKey};
+use ed25519_dalek::{Signature, VerifyingKey};
+use serde::{Deserialize, Serialize};
 
 /// A MobileCoin Ed25519 public key (32 bytes).
 ///
@@ -137,10 +139,13 @@ impl TryFrom<&[u8]> for MobSignature {
 }
 
 /// A MobileCoin key pair for signing.
+/// Only available with the "std" feature (not in WASM contracts).
+#[cfg(feature = "std")]
 pub struct MobKeyPair {
     signing_key: SigningKey,
 }
 
+#[cfg(feature = "std")]
 impl MobKeyPair {
     /// Generate a new random key pair.
     pub fn generate() -> Self {
@@ -195,6 +200,8 @@ impl MobSignedPayload {
     }
 
     /// Create by signing a payload with a key pair.
+    /// Only available with the "std" feature.
+    #[cfg(feature = "std")]
     pub fn sign(payload: Vec<u8>, key_pair: &MobKeyPair) -> Self {
         let signature = key_pair.sign(&payload);
         let public_key = key_pair.public_key();

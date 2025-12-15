@@ -195,6 +195,7 @@ fn compute_checksum(payload: &[u8]) -> [u8; 4] {
 }
 
 /// Extract public keys from an address.
+#[allow(dead_code)]
 pub fn extract_public_keys(address: &MobAddress) -> (RistrettoPublic, RistrettoPublic) {
     (address.view_public_key, address.spend_public_key)
 }

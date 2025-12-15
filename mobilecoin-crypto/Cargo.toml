@@ -5,13 +5,17 @@ edition.workspace = true
 license.workspace = true
 description = "Ed25519 cryptographic primitives for MobileCoin integration with NEAR Intents"
 
+[features]
+default = ["std"]
+std = ["rand", "rand_core", "ed25519-dalek/rand_core"]
+
 [dependencies]
-ed25519-dalek.workspace = true
-sha2.workspace = true
-rand_core.workspace = true
-rand.workspace = true
+ed25519-dalek = { workspace = true, default-features = false }
+sha2 = { workspace = true, default-features = false }
+rand_core = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 serde.workspace = true
-hex.workspace = true
+hex = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror.workspace = true
 
 [dev-dependencies]

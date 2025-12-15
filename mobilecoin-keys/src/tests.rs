@@ -260,7 +260,7 @@ fn test_serialization_roundtrip() {
 
 mod security_tests {
     use super::*;
-    use crate::derivation::{derive_one_time_from_receiver_safe, derive_one_time_public_key_safe};
+    use crate::derivation::derive_one_time_public_key_safe;
 
     /// Test that safe derivation functions properly handle invalid public keys.
     #[test]

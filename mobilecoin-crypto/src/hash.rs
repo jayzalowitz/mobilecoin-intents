@@ -101,7 +101,8 @@ pub fn create_swap_message(
 }
 
 /// Create a SHA-256 hash of arbitrary data.
-pub fn sha256(data: &[u8]) -> [u8; 32] {
+#[cfg(test)]
+fn sha256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(data);
     let result = hasher.finalize();
@@ -111,7 +112,8 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 }
 
 /// Create a SHA-512 hash of arbitrary data.
-pub fn sha512(data: &[u8]) -> [u8; 64] {
+#[cfg(test)]
+fn sha512(data: &[u8]) -> [u8; 64] {
     let mut hasher = Sha512::new();
     hasher.update(data);
     let result = hasher.finalize();

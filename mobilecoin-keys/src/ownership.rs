@@ -3,7 +3,7 @@
 use crate::derivation::{
     derive_key_image, derive_one_time_from_receiver, derive_one_time_private_key,
 };
-use crate::{KeyError, RistrettoPrivate, RistrettoPublic};
+use crate::{RistrettoPrivate, RistrettoPublic};
 
 /// A detected output that belongs to a wallet.
 #[derive(Debug, Clone)]
@@ -126,13 +126,14 @@ pub fn scan_outputs_for_ownership(
 ///
 /// # Returns
 /// `Some(subaddress_index)` if found, `None` otherwise.
-pub fn check_subaddress_ownership(
+#[cfg(test)]
+pub(crate) fn check_subaddress_ownership(
     output_public_key: &RistrettoPublic,
     tx_public_key: &RistrettoPublic,
     view_private_key: &RistrettoPrivate,
     spend_public_key: &RistrettoPublic,
     output_index: u64,
-    max_subaddress: u32,
+    _max_subaddress: u32,
 ) -> Option<u32> {
     // Check main address (index 0)
     if check_output_ownership(

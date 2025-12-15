@@ -10,7 +10,11 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 near-sdk.workspace = true
+borsh.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
 
 [profile.release]
 codegen-units = 1
