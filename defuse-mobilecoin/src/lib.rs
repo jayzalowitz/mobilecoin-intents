@@ -13,20 +13,18 @@
 //! MobileCoin-specific functionality while maintaining compatibility
 //! with the existing intent system.
 
-use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
-use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise};
-use serde::{Deserialize, Serialize};
+use near_sdk::{env, near, AccountId, PanicOnDefault};
 
-use mobilecoin_address::{parse_mob_address, validate_mob_address, MobNetwork};
+use mobilecoin_address::{validate_mob_address as validate_mob_addr, MobNetwork};
 use mobilecoin_crypto::{verify_mob_signature, MobPublicKey, MobSignature};
 
 /// Chain identifier for MobileCoin.
 pub const MOB_CHAIN_ID: &str = "mobilecoin";
 
 /// MobileCoin chain configuration.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug)]
 pub struct MobChainConfig {
     /// wMOB token contract.
     pub wmob_token: AccountId,
@@ -41,8 +39,8 @@ pub struct MobChainConfig {
 }
 
 /// MobileCoin intent structure.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug)]
 pub struct MobIntent {
     /// Unique intent identifier.
     pub intent_id: String,
@@ -65,8 +63,8 @@ pub struct MobIntent {
 }
 
 /// Signed MobileCoin intent.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug)]
 pub struct SignedMobIntent {
     /// The intent data.
     pub intent: MobIntent,
@@ -75,8 +73,8 @@ pub struct SignedMobIntent {
 }
 
 /// Intent status.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug, PartialEq)]
 pub enum IntentStatus {
     /// Pending resolution.
     Pending,
@@ -95,8 +93,8 @@ pub enum IntentStatus {
 }
 
 /// Settlement types for MobileCoin.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug)]
 pub enum SettlementType {
     /// MOB → wMOB (deposit flow).
     MobToWmob,
@@ -109,8 +107,8 @@ pub enum SettlementType {
 }
 
 /// MobileCoin settlement data.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-#[serde(crate = "near_sdk::serde")]
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug)]
 pub struct MobSettlement {
     /// Type of settlement.
     pub settlement_type: SettlementType,
@@ -120,6 +118,16 @@ pub struct MobSettlement {
     pub wmob_amount: U128,
     /// MOB transaction hash (for WmobToMob).
     pub mob_tx_hash: Option<String>,
+}
+
+/// Validation result for addresses.
+#[near(serializers = [json])]
+#[derive(Clone, Debug)]
+pub struct ValidationResult {
+    /// Whether the validation passed.
+    pub valid: bool,
+    /// Error message if validation failed.
+    pub error: Option<String>,
 }
 
 /// Error types for intent processing.
@@ -146,8 +154,8 @@ pub enum IntentError {
 }
 
 /// The MobileCoin verifier module.
-#[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
+#[near(contract_state)]
+#[derive(PanicOnDefault)]
 pub struct MobVerifier {
     /// MobileCoin chain configuration.
     config: Option<MobChainConfig>,
@@ -155,7 +163,7 @@ pub struct MobVerifier {
     owner: AccountId,
 }
 
-#[near_bindgen]
+#[near]
 impl MobVerifier {
     /// Initialize the MobileCoin verifier.
     #[init]
@@ -198,27 +206,45 @@ impl MobVerifier {
     // ==================== Address Validation ====================
 
     /// Validate a MobileCoin address.
-    pub fn validate_mob_address(&self, address: &str) -> bool {
-        match validate_mob_address(address) {
+    pub fn validate_mob_address(&self, address: String) -> bool {
+        match validate_mob_addr(&address) {
             Ok(result) => result.is_valid,
             Err(_) => false,
         }
     }
 
     /// Parse and validate MOB address for settlement.
-    pub fn validate_for_settlement(&self, address: &str) -> Result<bool, String> {
-        let validation = validate_mob_address(address).map_err(|e| format!("{}", e))?;
+    /// Returns validation result or error message.
+    pub fn validate_for_settlement(&self, address: String) -> ValidationResult {
+        let validation = match validate_mob_addr(&address) {
+            Ok(v) => v,
+            Err(e) => {
+                return ValidationResult {
+                    valid: false,
+                    error: Some(format!("{}", e)),
+                }
+            }
+        };
 
         if !validation.is_valid {
-            return Err(validation.messages.join(", "));
+            return ValidationResult {
+                valid: false,
+                error: Some(validation.messages.join(", ")),
+            };
         }
 
         // Must be mainnet
         if validation.network != Some(MobNetwork::Mainnet) {
-            return Err("Address must be mainnet".to_string());
+            return ValidationResult {
+                valid: false,
+                error: Some("Address must be mainnet".to_string()),
+            };
         }
 
-        Ok(true)
+        ValidationResult {
+            valid: true,
+            error: None,
+        }
     }
 
     // ==================== Signature Verification ====================
@@ -254,6 +280,7 @@ impl MobVerifier {
             dest_asset: {}\n\
             min_dest_amount: {}\n\
             dest_address: {}\n\
+            refund_address: {}\n\
             deadline: {}\n",
             intent.intent_id,
             intent.source_asset,
@@ -261,6 +288,7 @@ impl MobVerifier {
             intent.dest_asset,
             intent.min_dest_amount.0,
             intent.dest_address,
+            intent.refund_address,
             intent.deadline
         )
         .into_bytes()
@@ -286,13 +314,30 @@ impl MobVerifier {
         // Validate addresses
         if signed_intent.intent.dest_asset == "MOB" {
             assert!(
-                self.validate_mob_address(&signed_intent.intent.dest_address),
+                signed_intent.intent.dest_address.len() <= 256,
+                "Destination address too long"
+            );
+            assert!(
+                self.validate_for_settlement(signed_intent.intent.dest_address.clone())
+                    .valid,
                 "Invalid destination address"
             );
+        } else {
+            // For non-MOB destinations, expect a NEAR account ID.
+            signed_intent
+                .intent
+                .dest_address
+                .parse::<AccountId>()
+                .expect("Invalid NEAR destination account");
         }
 
         assert!(
-            self.validate_mob_address(&signed_intent.intent.refund_address),
+            signed_intent.intent.refund_address.len() <= 256,
+            "Refund address too long"
+        );
+        assert!(
+            self.validate_for_settlement(signed_intent.intent.refund_address.clone())
+                .valid,
             "Invalid refund address"
         );
 
@@ -303,9 +348,9 @@ impl MobVerifier {
         );
 
         // Validate amount
-        let amount: u64 = signed_intent.intent.source_amount.0 as u64;
-        assert!(amount >= config.min_amount, "Amount too low");
-        assert!(amount <= config.max_amount, "Amount too high");
+        let amount: u128 = signed_intent.intent.source_amount.0;
+        assert!(amount >= config.min_amount as u128, "Amount too low");
+        assert!(amount <= config.max_amount as u128, "Amount too high");
 
         // Emit event for solvers
         env::log_str(&format!(

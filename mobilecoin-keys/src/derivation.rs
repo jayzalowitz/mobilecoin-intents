@@ -1,11 +1,9 @@
 //! One-time key derivation functions.
 
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::scalar::Scalar;
 
 use crate::shared_secret::{compute_shared_secret, hash_to_point};
-use crate::{KeyError, RistrettoPrivate, RistrettoPublic, TxKey};
+use crate::{RistrettoPrivate, RistrettoPublic, TxKey};
 
 /// Derive a one-time public key for a transaction output.
 ///
@@ -69,15 +67,16 @@ pub fn derive_one_time_public_key(
 /// # Returns
 /// * `Ok(RistrettoPublic)` - The derived one-time public key
 /// * `Err(KeyError)` - If either input public key is invalid
-pub fn derive_one_time_public_key_safe(
+#[cfg(test)]
+pub(crate) fn derive_one_time_public_key_safe(
     recipient_view_public: &RistrettoPublic,
     recipient_spend_public: &RistrettoPublic,
     tx_private_key: &RistrettoPrivate,
     output_index: u64,
-) -> Result<RistrettoPublic, KeyError> {
+) -> Result<RistrettoPublic, crate::KeyError> {
     // Validate view public key
     if !recipient_view_public.is_valid() {
-        return Err(KeyError::InvalidPublicKey(
+        return Err(crate::KeyError::InvalidPublicKey(
             "Invalid view public key".to_string(),
         ));
     }
@@ -85,7 +84,7 @@ pub fn derive_one_time_public_key_safe(
     // Validate spend public key
     let spend_point = recipient_spend_public
         .decompress()
-        .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
+        .ok_or_else(|| crate::KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
 
     // Compute shared secret: Hs(r*A, index)
     let shared_secret = compute_shared_secret(recipient_view_public, tx_private_key, output_index);
@@ -216,15 +215,16 @@ pub fn derive_one_time_from_receiver(
 /// # Returns
 /// * `Ok(RistrettoPublic)` - The computed one-time public key
 /// * `Err(KeyError)` - If any input key is invalid
-pub fn derive_one_time_from_receiver_safe(
+#[cfg(test)]
+pub(crate) fn derive_one_time_from_receiver_safe(
     tx_public_key: &RistrettoPublic,
     view_private_key: &RistrettoPrivate,
     spend_public_key: &RistrettoPublic,
     output_index: u64,
-) -> Result<RistrettoPublic, KeyError> {
+) -> Result<RistrettoPublic, crate::KeyError> {
     // Validate tx public key
     if !tx_public_key.is_valid() {
-        return Err(KeyError::InvalidPublicKey(
+        return Err(crate::KeyError::InvalidPublicKey(
             "Invalid transaction public key".to_string(),
         ));
     }
@@ -232,7 +232,7 @@ pub fn derive_one_time_from_receiver_safe(
     // Validate spend public key
     let spend_point = spend_public_key
         .decompress()
-        .ok_or_else(|| KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
+        .ok_or_else(|| crate::KeyError::InvalidPublicKey("Invalid spend public key".to_string()))?;
 
     // Compute shared secret from receiver's perspective
     let shared_secret = compute_shared_secret(tx_public_key, view_private_key, output_index);

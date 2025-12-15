@@ -84,7 +84,7 @@ pub fn validate_mob_address(address_str: &str) -> Result<ValidationResult, Addre
 
     // Check Fog info if present
     if let Some(ref fog_info) = address.fog_info {
-        if !validate_fog_info(fog_info).is_ok() {
+        if validate_fog_info(fog_info).is_err() {
             result = result.with_warning("Fog info may be invalid");
         }
     }
@@ -166,6 +166,7 @@ pub fn validate_fog_info(fog_info: &FogInfo) -> Result<(), AddressError> {
 /// # Returns
 /// * `Ok(MobAddress)` - Address is valid for settlement
 /// * `Err(AddressError)` - Address is not valid for settlement
+#[allow(dead_code)]
 pub fn validate_for_settlement(address_str: &str) -> Result<MobAddress, AddressError> {
     let address = parse_mob_address(address_str)?;
 
@@ -190,6 +191,7 @@ pub fn validate_for_settlement(address_str: &str) -> Result<MobAddress, AddressE
 }
 
 /// Check if two addresses are equal (same keys).
+#[allow(dead_code)]
 pub fn addresses_equal(addr1: &MobAddress, addr2: &MobAddress) -> bool {
     addr1.view_public_key == addr2.view_public_key
         && addr1.spend_public_key == addr2.spend_public_key

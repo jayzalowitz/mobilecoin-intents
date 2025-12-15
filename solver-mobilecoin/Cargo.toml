@@ -22,8 +22,8 @@ env_logger.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-hex.workspace = true
+hex = { workspace = true, features = ["std"] }
 
-mobilecoin-crypto = { path = "../mobilecoin-crypto" }
-mobilecoin-address = { path = "../mobilecoin-address" }
+mobilecoin-crypto = { path = "../mobilecoin-crypto", features = ["std"] }
+mobilecoin-address = { path = "../mobilecoin-address", features = ["std"] }
 mobilecoin-keys = { path = "../mobilecoin-keys" }

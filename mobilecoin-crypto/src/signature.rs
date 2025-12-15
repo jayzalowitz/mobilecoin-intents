@@ -1,8 +1,9 @@
 //! Ed25519 signature verification for MobileCoin.
 
-use crate::{CryptoError, MobKeyPair, MobPublicKey, MobSignature};
+#[cfg(feature = "std")]
+use crate::MobKeyPair;
+use crate::{CryptoError, MobPublicKey, MobSignature};
 use ed25519_dalek::Verifier;
-use sha2::{Digest, Sha512};
 
 /// Domain separator prefix for MobileCoin intent signatures.
 pub const MOB_INTENT_DOMAIN: &str = "MobileCoin Intent v1";
@@ -87,6 +88,9 @@ pub fn verify_mob_signature_with_domain(
 ///
 /// # Returns
 /// The Ed25519 signature over the domain-prefixed message.
+///
+/// Only available with the "std" feature.
+#[cfg(feature = "std")]
 pub fn sign_message(domain: &str, message: &[u8], key_pair: &MobKeyPair) -> MobSignature {
     let domain_message = create_domain_message(domain, message);
     key_pair.sign(&domain_message)
@@ -101,18 +105,6 @@ fn create_domain_message(domain: &str, message: &[u8]) -> Vec<u8> {
     result
 }
 
-/// Hash a message using SHA-512 (used internally by Ed25519).
-///
-/// This can be used to create message digests before signing.
-pub fn hash_message_sha512(message: &[u8]) -> [u8; 64] {
-    let mut hasher = Sha512::new();
-    hasher.update(message);
-    let result = hasher.finalize();
-    let mut output = [0u8; 64];
-    output.copy_from_slice(&result);
-    output
-}
-
 /// Verify multiple signatures in batch.
 ///
 /// This is more efficient than verifying each signature individually.
@@ -123,7 +115,8 @@ pub fn hash_message_sha512(message: &[u8]) -> [u8; 64] {
 /// # Returns
 /// * `Ok(())` - All signatures are valid
 /// * `Err(CryptoError)` - At least one signature is invalid
-pub fn verify_batch(items: &[(&[u8], &MobSignature, &MobPublicKey)]) -> Result<(), CryptoError> {
+#[cfg(test)]
+fn verify_batch(items: &[(&[u8], &MobSignature, &MobPublicKey)]) -> Result<(), CryptoError> {
     for (message, signature, public_key) in items {
         if !verify_mob_signature(message, signature, public_key)? {
             return Err(CryptoError::VerificationFailed);

@@ -39,10 +39,12 @@ mod types;
 pub use error::CryptoError;
 pub use hash::{create_signable_message, hash_message_for_signing};
 pub use payload::{MobPayload, Payload, SignedMobPayload, SignedPayload};
-pub use signature::{
-    sign_message, verify_mob_signature, verify_mob_signature_with_domain, MOB_INTENT_DOMAIN,
-};
-pub use types::{MobKeyPair, MobPublicKey, MobSignature, MobSignedPayload};
+#[cfg(feature = "std")]
+pub use signature::sign_message;
+pub use signature::{verify_mob_signature, verify_mob_signature_with_domain, MOB_INTENT_DOMAIN};
+#[cfg(feature = "std")]
+pub use types::MobKeyPair;
+pub use types::{MobPublicKey, MobSignature, MobSignedPayload};
 
 #[cfg(test)]
 mod tests;

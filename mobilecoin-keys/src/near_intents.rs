@@ -1,9 +1,8 @@
 //! NEAR Intents integration for one-time key derivation.
 
-use crate::derivation::{derive_one_time_from_receiver, derive_one_time_public_key};
+use crate::derivation::derive_one_time_public_key;
 use crate::shared_secret::hash_to_scalar;
-use crate::{KeyError, RistrettoPrivate, RistrettoPublic, TxKey};
-use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
+use crate::{RistrettoPrivate, RistrettoPublic, TxKey};
 use mobilecoin_address::MobAddress;
 
 /// Generate a deterministic one-time address for NEAR Intents settlement.
@@ -130,13 +129,15 @@ fn derive_tx_key_from_intent(intent_id: &str, domain: &str) -> TxKey {
 ///
 /// # Returns
 /// A unique identifier string.
-pub fn generate_output_id(intent_id: &str, output_type: &str, output_index: u64) -> String {
+#[cfg(test)]
+pub(crate) fn generate_output_id(intent_id: &str, output_type: &str, output_index: u64) -> String {
     format!("mob:{}:{}:{}", intent_id, output_type, output_index)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
     use curve25519_dalek::scalar::Scalar;
     use mobilecoin_address::{MobNetwork, RistrettoPublic as AddrRistrettoPublic};
     use rand::RngCore;

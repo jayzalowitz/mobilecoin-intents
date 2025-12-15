@@ -5,12 +5,16 @@ edition.workspace = true
 license.workspace = true
 description = "MobileCoin address parsing and validation for NEAR Intents"
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
-curve25519-dalek.workspace = true
-bs58.workspace = true
-sha2.workspace = true
+curve25519-dalek = { workspace = true, default-features = false }
+bs58 = { workspace = true, default-features = false, features = ["alloc"] }
+sha2 = { workspace = true, default-features = false }
 serde.workspace = true
-hex.workspace = true
+hex = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror.workspace = true
 
 [dev-dependencies]

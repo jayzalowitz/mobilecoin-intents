@@ -22,9 +22,9 @@
 //! 4. Authorities submit completion proof
 
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::json_types::U128;
-use near_sdk::{env, near_bindgen, AccountId, Balance, PanicOnDefault, Promise, PublicKey};
+use near_sdk::store::{LookupMap, LookupSet};
+use near_sdk::{env, near_bindgen, AccountId, NearToken, PanicOnDefault, Promise, PublicKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -78,6 +78,8 @@ pub struct WithdrawalRequest {
     pub mob_destination: String,
     /// Amount in picoMOB.
     pub amount: U128,
+    /// Storage deposit retained by the contract (yoctoNEAR).
+    pub storage_deposit: U128,
     /// Request timestamp.
     pub timestamp: u64,
     /// Current status.
@@ -90,6 +92,8 @@ pub struct WithdrawalRequest {
 pub enum WithdrawalStatus {
     /// Waiting to be processed.
     Pending,
+    /// Awaiting wMOB burn confirmation.
+    Burning,
     /// Being processed by authorities.
     Processing,
     /// Successfully completed.
@@ -106,7 +110,7 @@ pub struct RateLimitConfig {
     /// Maximum withdrawals per hour.
     pub max_withdrawals_per_hour: u32,
     /// Maximum total volume per hour in picoMOB.
-    pub max_volume_per_hour: Balance,
+    pub max_volume_per_hour: u128,
 }
 
 impl Default for RateLimitConfig {
@@ -129,7 +133,7 @@ pub struct RateLimitState {
     /// Number of withdrawals in current window.
     pub withdrawal_count: u32,
     /// Total volume in current window.
-    pub volume: Balance,
+    pub volume: u128,
 }
 
 /// The MobileCoin bridge contract.
@@ -143,7 +147,7 @@ pub struct MobBridge {
     /// Required signature threshold.
     threshold: u32,
     /// Processed deposit transaction hashes (prevent replay).
-    processed_deposits: UnorderedSet<String>,
+    processed_deposits: LookupSet<String>,
     /// Pending withdrawals.
     pending_withdrawals: LookupMap<WithdrawalId, WithdrawalRequest>,
     /// Withdrawal nonce.
@@ -155,9 +159,9 @@ pub struct MobBridge {
     /// Whether contract is paused.
     paused: bool,
     /// Minimum deposit amount.
-    min_deposit: Balance,
+    min_deposit: u128,
     /// Maximum deposit amount.
-    max_deposit: Balance,
+    max_deposit: u128,
     /// Rate limit configuration.
     rate_limit_config: RateLimitConfig,
     /// Rate limit state.
@@ -193,7 +197,7 @@ impl MobBridge {
             wmob_token,
             authorities,
             threshold,
-            processed_deposits: UnorderedSet::new(b"d"),
+            processed_deposits: LookupSet::new(b"d"),
             pending_withdrawals: LookupMap::new(b"w"),
             withdrawal_nonce: 0,
             mob_custody_address,
@@ -214,8 +218,17 @@ impl MobBridge {
     ///
     /// # Arguments
     /// * `proof` - Deposit proof with authority signatures
+    #[payable]
     pub fn deposit(&mut self, proof: DepositProof) -> Promise {
         self.assert_not_paused();
+
+        let refund_to = env::predecessor_account_id();
+
+        // Basic bounds to prevent storage/gas DoS via huge strings.
+        assert!(
+            (64..=128).contains(&proof.tx_hash.len()),
+            "Invalid tx_hash length"
+        );
 
         // Check not already processed (replay protection)
         assert!(
@@ -224,7 +237,7 @@ impl MobBridge {
         );
 
         // Verify amount bounds
-        let amount: Balance = proof.amount.into();
+        let amount: u128 = proof.amount.into();
         assert!(amount >= self.min_deposit, "Amount below minimum");
         assert!(amount <= self.max_deposit, "Amount above maximum");
 
@@ -234,8 +247,25 @@ impl MobBridge {
         // Verify signatures
         self.verify_deposit_signatures(&proof);
 
-        // Mark as processed
-        self.processed_deposits.insert(&proof.tx_hash);
+        // Mark as processed (locks tx_hash so it can't be replayed while mint is pending)
+        let storage_before = env::storage_usage();
+        self.processed_deposits.insert(proof.tx_hash.clone());
+        let storage_after = env::storage_usage();
+
+        // Require the caller to cover storage for replay protection.
+        let storage_used = storage_after.saturating_sub(storage_before) as u128;
+        let required_deposit = storage_used.saturating_mul(env::storage_byte_cost().as_yoctonear());
+        let attached = env::attached_deposit().as_yoctonear();
+        assert!(
+            attached >= required_deposit,
+            "Insufficient deposit to cover storage"
+        );
+
+        // Refund any overpayment (keep required deposit to cover storage rent).
+        let refund = attached - required_deposit;
+        if refund > 0 {
+            let _ = Promise::new(refund_to.clone()).transfer(NearToken::from_yoctonear(refund));
+        }
 
         // Log event
         env::log_str(&format!(
@@ -244,17 +274,32 @@ impl MobBridge {
         ));
 
         // Mint wMOB to recipient
-        Promise::new(self.wmob_token.clone()).function_call(
-            "mint".to_string(),
-            near_sdk::serde_json::json!({
-                "account_id": proof.recipient,
-                "amount": proof.amount
-            })
-            .to_string()
-            .into_bytes(),
-            0,
-            near_sdk::Gas::from_tgas(20),
-        )
+        Promise::new(self.wmob_token.clone())
+            .function_call(
+                "mint".to_string(),
+                near_sdk::serde_json::json!({
+                    "account_id": proof.recipient,
+                    "amount": proof.amount
+                })
+                .to_string()
+                .into_bytes(),
+                NearToken::from_yoctonear(0),
+                near_sdk::Gas::from_tgas(20),
+            )
+            .then(
+                Promise::new(env::current_account_id()).function_call(
+                    "on_deposit_mint_complete".to_string(),
+                    near_sdk::serde_json::json!({
+                        "tx_hash": proof.tx_hash,
+                        "refund_to": refund_to,
+                        "storage_deposit": U128::from(required_deposit),
+                    })
+                    .to_string()
+                    .into_bytes(),
+                    NearToken::from_yoctonear(0),
+                    near_sdk::Gas::from_tgas(10),
+                ),
+            )
     }
 
     // ==================== Withdrawal Functions ====================
@@ -271,18 +316,20 @@ impl MobBridge {
     pub fn withdraw(&mut self, mob_destination: String, amount: U128) -> WithdrawalId {
         self.assert_not_paused();
 
-        assert_eq!(
-            env::attached_deposit(),
-            1,
-            "Requires 1 yoctoNEAR for security"
+        let requester = env::predecessor_account_id();
+
+        assert!(
+            env::attached_deposit().as_yoctonear() >= 1,
+            "Requires attached deposit of at least 1 yoctoNEAR for security"
         );
 
         // Validate MOB address format
         // MobileCoin addresses are Base58-encoded with specific length requirements
         self.validate_mob_address(&mob_destination);
 
-        let amount_val: Balance = amount.into();
+        let amount_val: u128 = amount.into();
         assert!(amount_val >= self.min_deposit, "Amount below minimum");
+        assert!(amount_val <= self.max_deposit, "Amount above maximum");
 
         // Rate limiting check
         self.check_and_update_rate_limit(false, amount_val);
@@ -291,22 +338,73 @@ impl MobBridge {
         let id = self.withdrawal_nonce;
         self.withdrawal_nonce += 1;
 
-        let request = WithdrawalRequest {
+        let mut request = WithdrawalRequest {
             id,
-            requester: env::predecessor_account_id(),
+            requester: requester.clone(),
             mob_destination: mob_destination.clone(),
             amount,
+            storage_deposit: U128::from(0),
             timestamp: env::block_timestamp(),
-            status: WithdrawalStatus::Pending,
+            status: WithdrawalStatus::Burning,
         };
 
-        self.pending_withdrawals.insert(&id, &request);
+        // Persist request to reserve ID and enable burn callback cleanup.
+        let storage_before = env::storage_usage();
+        self.pending_withdrawals.insert(id, request.clone());
+        self.pending_withdrawals.flush();
+        let storage_after = env::storage_usage();
+
+        // Require caller to cover storage for the request.
+        let storage_used = storage_after.saturating_sub(storage_before) as u128;
+        let required_deposit = storage_used.saturating_mul(env::storage_byte_cost().as_yoctonear());
+        let attached = env::attached_deposit().as_yoctonear();
+        assert!(
+            attached >= required_deposit,
+            "Insufficient deposit to cover storage"
+        );
+
+        // Store the retained deposit so we can refund it on burn failure.
+        request.storage_deposit = U128::from(required_deposit);
+        self.pending_withdrawals.insert(id, request.clone());
+        self.pending_withdrawals.flush();
+
+        // Refund any overpayment now; keep the required deposit for storage.
+        let refund = attached - required_deposit;
+        if refund > 0 {
+            let _ = Promise::new(requester.clone()).transfer(NearToken::from_yoctonear(refund));
+        }
 
         // Log event
         env::log_str(&format!(
             "EVENT_JSON:{{\"standard\":\"mob-bridge\",\"version\":\"1.0.0\",\"event\":\"withdrawal_requested\",\"data\":{{\"id\":{},\"requester\":\"{}\",\"destination\":\"{}\",\"amount\":\"{}\"}}}}",
-            id, request.requester, mob_destination, amount_val
+            id, requester, mob_destination, amount_val
         ));
+
+        // Burn wMOB from requester before allowing authorities to process the withdrawal.
+        let _ = Promise::new(self.wmob_token.clone())
+            .function_call(
+                "burn".to_string(),
+                near_sdk::serde_json::json!({
+                    "account_id": requester,
+                    "amount": amount
+                })
+                .to_string()
+                .into_bytes(),
+                NearToken::from_yoctonear(0),
+                near_sdk::Gas::from_tgas(20),
+            )
+            .then(
+                Promise::new(env::current_account_id()).function_call(
+                    "on_withdraw_burn_complete".to_string(),
+                    near_sdk::serde_json::json!({
+                        "withdrawal_id": id
+                    })
+                    .to_string()
+                    .into_bytes(),
+                    NearToken::from_yoctonear(0),
+                    near_sdk::Gas::from_tgas(10),
+                ),
+            );
 
         id
     }
@@ -325,10 +423,16 @@ impl MobBridge {
     ) {
         self.assert_not_paused();
 
+        assert!(
+            (64..=128).contains(&mob_tx_hash.len()),
+            "Invalid mob_tx_hash length"
+        );
+
         // Get withdrawal request
         let mut request = self
             .pending_withdrawals
             .get(&withdrawal_id)
+            .cloned()
             .expect("Withdrawal not found");
 
         assert!(
@@ -345,7 +449,8 @@ impl MobBridge {
         request.status = WithdrawalStatus::Completed {
             mob_tx_hash: mob_tx_hash.clone(),
         };
-        self.pending_withdrawals.insert(&withdrawal_id, &request);
+        self.pending_withdrawals.insert(withdrawal_id, request);
+        self.pending_withdrawals.flush();
 
         // Log event
         env::log_str(&format!(
@@ -363,24 +468,31 @@ impl MobBridge {
     ) {
         self.assert_not_paused();
 
+        assert!(reason.len() <= 256, "Reason too long");
+
         let mut request = self
             .pending_withdrawals
             .get(&withdrawal_id)
+            .cloned()
             .expect("Withdrawal not found");
 
         // Verify signatures
-        let message = format!("FAIL:{}:{}", withdrawal_id, reason);
-        self.verify_signatures(message.as_bytes(), &signatures);
+        let msg = format!("FAIL:{}:{}", withdrawal_id, reason);
+        let mut hasher = Sha256::new();
+        hasher.update(msg.as_bytes());
+        let message = hasher.finalize().to_vec();
+        self.verify_signatures(&message, &signatures);
 
         request.status = WithdrawalStatus::Failed { reason };
-        self.pending_withdrawals.insert(&withdrawal_id, &request);
+        self.pending_withdrawals.insert(withdrawal_id, request);
+        self.pending_withdrawals.flush();
     }
 
     // ==================== View Functions ====================
 
     /// Get withdrawal request by ID.
     pub fn get_withdrawal(&self, withdrawal_id: WithdrawalId) -> Option<WithdrawalRequest> {
-        self.pending_withdrawals.get(&withdrawal_id)
+        self.pending_withdrawals.get(&withdrawal_id).cloned()
     }
 
     /// Check if a deposit has been processed.
@@ -500,6 +612,10 @@ impl MobBridge {
             signatures.len() >= self.threshold as usize,
             "Not enough signatures"
         );
+        assert!(
+            signatures.len() <= self.authorities.len(),
+            "Too many signatures"
+        );
 
         let mut verified_count = 0;
         let mut seen_authorities = std::collections::HashSet::new();
@@ -580,7 +696,10 @@ impl MobBridge {
 
         // Use NEAR's built-in Ed25519 verification
         // This is cryptographically secure and gas-optimized
-        env::ed25519_verify(signature, message, pubkey)
+        let Ok(pubkey_array) = <[u8; 32]>::try_from(pubkey) else {
+            return false;
+        };
+        env::ed25519_verify(signature, message, &pubkey_array)
     }
 
     fn assert_owner_only(&self) {
@@ -595,6 +714,64 @@ impl MobBridge {
         assert!(!self.paused, "Contract is paused");
     }
 
+    /// Callback after minting wMOB for a deposit.
+    #[private]
+    pub fn on_deposit_mint_complete(
+        &mut self,
+        tx_hash: String,
+        refund_to: AccountId,
+        storage_deposit: U128,
+    ) {
+        let succeeded = matches!(
+            env::promise_result(0),
+            near_sdk::PromiseResult::Successful(_)
+        );
+        if succeeded {
+            return;
+        }
+
+        // If mint failed, allow retry by removing replay lock, and refund storage deposit.
+        if self.processed_deposits.remove(&tx_hash) {
+            // no-op: LookupSet writes directly to storage
+        }
+
+        let deposit = storage_deposit.0;
+        if deposit > 0 {
+            let _ = Promise::new(refund_to).transfer(NearToken::from_yoctonear(deposit));
+        }
+    }
+
+    /// Callback after burning wMOB for a withdrawal request.
+    #[private]
+    pub fn on_withdraw_burn_complete(&mut self, withdrawal_id: WithdrawalId) {
+        let succeeded = matches!(
+            env::promise_result(0),
+            near_sdk::PromiseResult::Successful(_)
+        );
+
+        let Some(mut request) = self.pending_withdrawals.get(&withdrawal_id).cloned() else {
+            return;
+        };
+
+        if succeeded {
+            request.status = WithdrawalStatus::Pending;
+            self.pending_withdrawals.insert(withdrawal_id, request);
+            self.pending_withdrawals.flush();
+            return;
+        }
+
+        // Burn failed: remove request and refund retained storage deposit.
+        let removed = self.pending_withdrawals.remove(&withdrawal_id);
+        self.pending_withdrawals.flush();
+
+        if let Some(req) = removed {
+            let deposit = req.storage_deposit.0;
+            if deposit > 0 {
+                let _ = Promise::new(req.requester).transfer(NearToken::from_yoctonear(deposit));
+            }
+        }
+    }
+
     /// Check and update rate limits.
     ///
     /// # Arguments
@@ -603,7 +780,7 @@ impl MobBridge {
     ///
     /// # Security
     /// Prevents DoS and draining attacks by limiting transaction frequency and volume.
-    fn check_and_update_rate_limit(&mut self, is_deposit: bool, amount: Balance) {
+    fn check_and_update_rate_limit(&mut self, is_deposit: bool, amount: u128) {
         let current_time = env::block_timestamp();
         let one_hour_ns: u64 = 3_600_000_000_000; // 1 hour in nanoseconds
 
@@ -680,7 +857,7 @@ mod tests {
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::testing_env;
 
-    fn get_context(predecessor: AccountId, deposit: Balance) -> near_sdk::VMContext {
+    fn get_context(predecessor: AccountId, deposit: NearToken) -> near_sdk::VMContext {
         VMContextBuilder::new()
             .predecessor_account_id(predecessor)
             .attached_deposit(deposit)
@@ -695,7 +872,7 @@ mod tests {
 
     #[test]
     fn test_init() {
-        let context = get_context("owner.near".parse().unwrap(), 0);
+        let context = get_context("owner.near".parse().unwrap(), NearToken::from_yoctonear(0));
         testing_env!(context);
 
         let contract = MobBridge::new(
@@ -712,7 +889,12 @@ mod tests {
 
     #[test]
     fn test_withdrawal_request() {
-        let context = get_context("user.near".parse().unwrap(), 1);
+        // Use a large attached deposit to cover storage in tests.
+        let one_near = 10u128.pow(24);
+        let context = get_context(
+            "user.near".parse().unwrap(),
+            NearToken::from_yoctonear(one_near),
+        );
         testing_env!(context);
 
         let mut contract = MobBridge::new(
@@ -731,12 +913,12 @@ mod tests {
 
         let request = contract.get_withdrawal(0).unwrap();
         assert_eq!(request.requester, "user.near".parse::<AccountId>().unwrap());
-        assert!(matches!(request.status, WithdrawalStatus::Pending));
+        assert!(matches!(request.status, WithdrawalStatus::Burning));
     }
 
     #[test]
     fn test_pause() {
-        let context = get_context("owner.near".parse().unwrap(), 0);
+        let context = get_context("owner.near".parse().unwrap(), NearToken::from_yoctonear(0));
         testing_env!(context);
 
         let mut contract = MobBridge::new(
