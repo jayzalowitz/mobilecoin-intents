@@ -45,7 +45,7 @@ impl PriceFeed {
     fn set_price(&mut self, base: &str, quote: &str, price: Decimal) {
         self.cache
             .entry(base.to_string())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(quote.to_string(), price);
     }
 

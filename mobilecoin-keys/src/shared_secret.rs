@@ -3,6 +3,7 @@
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::traits::Identity;
 use sha3::{Digest, Sha3_256};
 
 use crate::{RistrettoPrivate, RistrettoPublic};
@@ -29,8 +30,15 @@ pub fn compute_shared_secret(
     private_key: &RistrettoPrivate,
     output_index: u64,
 ) -> Scalar {
-    // Decompress the public key
-    let point = public_key.decompress().expect("Invalid public key");
+    // Decompress the public key.
+    //
+    // Security: do not panic on invalid points, since these APIs may be used
+    // with untrusted inputs (e.g., parsing transaction data or external
+    // addresses). An invalid point results in a deterministic "non-secret"
+    // shared secret, which will not match any valid output ownership checks.
+    let Some(point) = public_key.decompress() else {
+        return hash_to_scalar_with_index(&RistrettoPoint::identity(), output_index);
+    };
 
     // Compute DH: private_key * public_key
     let dh_point = private_key.as_scalar() * point;

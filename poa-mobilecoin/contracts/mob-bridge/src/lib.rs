@@ -637,6 +637,11 @@ impl MobBridge {
             let authority_pubkey = &self.authorities[sig.authority_index as usize];
 
             // Decode signature from hex
+            assert_eq!(
+                sig.signature.len(),
+                128,
+                "Signature must be 64 bytes (128 hex chars)"
+            );
             let sig_bytes = hex::decode(&sig.signature).expect("Invalid signature hex encoding");
 
             assert_eq!(sig_bytes.len(), 64, "Signature must be 64 bytes");
