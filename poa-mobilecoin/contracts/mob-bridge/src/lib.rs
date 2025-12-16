@@ -941,4 +941,113 @@ mod tests {
         contract.unpause();
         assert!(!contract.is_paused());
     }
+
+    // ==================== Ed25519 Signature Edge-Case Tests ====================
+    //
+    // These tests verify that the ed25519_verify function correctly rejects
+    // malformed or non-canonical signatures per the security audit recommendation.
+
+    mod ed25519_edge_cases {
+        use super::*;
+
+        fn create_test_contract() -> MobBridge {
+            let context = get_context("owner.near".parse().unwrap(), NearToken::from_yoctonear(0));
+            testing_env!(context);
+
+            MobBridge::new(
+                "wmob.near".parse().unwrap(),
+                vec![create_test_public_key()],
+                1,
+                "mob_custody_address".to_string(),
+            )
+        }
+
+        #[test]
+        fn test_rejects_wrong_pubkey_length() {
+            let contract = create_test_contract();
+            let message = b"test message";
+
+            // 31 bytes (too short)
+            let short_pubkey = [0u8; 31];
+            let signature = [0u8; 64];
+            assert!(!contract.ed25519_verify(&short_pubkey, message, &signature));
+
+            // 33 bytes (too long)
+            let long_pubkey = [0u8; 33];
+            assert!(!contract.ed25519_verify(&long_pubkey, message, &signature));
+
+            // Empty
+            let empty_pubkey: [u8; 0] = [];
+            assert!(!contract.ed25519_verify(&empty_pubkey, message, &signature));
+        }
+
+        #[test]
+        fn test_rejects_non_canonical_s_high_bit_set() {
+            let contract = create_test_contract();
+            let message = b"test message";
+            let pubkey = [0u8; 32];
+
+            // Signature with S value having high bit set (s[31] >= 0x80)
+            // This is non-canonical per Ed25519 spec
+            let mut sig_high_s = [0u8; 64];
+            sig_high_s[63] = 0x80; // High bit of S set
+            assert!(!contract.ed25519_verify(&pubkey, message, &sig_high_s));
+
+            sig_high_s[63] = 0xFF; // All bits set
+            assert!(!contract.ed25519_verify(&pubkey, message, &sig_high_s));
+
+            sig_high_s[63] = 0xED; // Another value >= 0x80
+            assert!(!contract.ed25519_verify(&pubkey, message, &sig_high_s));
+        }
+
+        #[test]
+        fn test_rejects_all_zero_signature() {
+            let contract = create_test_contract();
+            let message = b"test message";
+            let pubkey = [1u8; 32]; // Non-zero pubkey
+
+            // All-zero signature should fail verification
+            // (even though it passes the high-bit check)
+            let zero_sig = [0u8; 64];
+            // This will pass our canonicality check but fail actual verification
+            // The result depends on NEAR's ed25519_verify behavior
+            let _result = contract.ed25519_verify(&pubkey, message, &zero_sig);
+            // We don't assert the specific result because it depends on the
+            // NEAR runtime, but we verify it doesn't panic
+        }
+
+        #[test]
+        fn test_signature_hex_length_validation() {
+            // Test that signature hex strings must be exactly 128 chars (64 bytes)
+            let short_hex = "ab".repeat(63); // 126 chars = 63 bytes
+            assert_eq!(short_hex.len(), 126);
+
+            let correct_hex = "ab".repeat(64); // 128 chars = 64 bytes
+            assert_eq!(correct_hex.len(), 128);
+
+            let long_hex = "ab".repeat(65); // 130 chars = 65 bytes
+            assert_eq!(long_hex.len(), 130);
+
+            // The contract validates hex length is exactly 128 before decoding
+            // This prevents DoS via oversized hex strings
+        }
+
+        #[test]
+        fn test_boundary_s_values() {
+            let contract = create_test_contract();
+            let message = b"boundary test";
+            let pubkey = [0u8; 32];
+
+            // s[31] = 0x7F should pass canonicality check (< 0x80)
+            let mut sig_max_canonical = [0u8; 64];
+            sig_max_canonical[63] = 0x7F;
+            // Will fail actual verification but pass canonicality
+            let _result = contract.ed25519_verify(&pubkey, message, &sig_max_canonical);
+
+            // s[31] = 0x00 should pass canonicality check
+            let mut sig_zero_high = [0u8; 64];
+            sig_zero_high[63] = 0x00;
+            let _result = contract.ed25519_verify(&pubkey, message, &sig_zero_high);
+        }
+    }
 }

@@ -277,8 +277,34 @@ impl WMobToken {
     }
 
     // ==================== NEP-145 Storage Functions ====================
+    //
+    // IMPORTANT: Simplified NEP-145 Implementation
+    //
+    // This contract uses a simplified storage deposit model that differs from
+    // the full NEP-145 specification:
+    //
+    // 1. No per-account deposit tracking: The contract does not maintain a ledger
+    //    of how much each account has deposited. All deposits above the minimum
+    //    are accepted but excess is NOT refunded.
+    //
+    // 2. No storage_withdraw: Users cannot withdraw excess storage deposits.
+    //
+    // 3. Fixed storage cost: All accounts pay the same minimum storage cost.
+    //
+    // This simplified model is acceptable for the bridge use case because:
+    // - The storage cost is minimal (~0.00125 NEAR per account)
+    // - Accounts are typically registered once and used long-term
+    // - The bridge operator (not end users) typically registers accounts
+    //
+    // For a full NEP-145 implementation that tracks deposits and supports
+    // withdrawals, consider using near-contract-standards FungibleToken.
 
-    /// Register storage for an account (simplified version).
+    /// Register storage for an account.
+    ///
+    /// # Note
+    /// This is a simplified NEP-145 implementation. Deposits above the minimum
+    /// are accepted but excess is NOT refunded. See module-level documentation
+    /// for details on the simplified storage model.
     #[payable]
     pub fn storage_deposit(&mut self, account_id: Option<AccountId>) -> StorageBalance {
         let account = account_id.unwrap_or_else(env::predecessor_account_id);
