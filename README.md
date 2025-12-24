@@ -118,6 +118,22 @@ cp .env.example .env
 cargo run --release
 ```
 
+### Bridge Tools
+
+```bash
+# Generate authority keys and custody wallet
+cargo run --example generate-keys -p mobilecoin-crypto
+
+# Generate a deposit proof (for minting wMOB)
+cargo run --example demo-real-deposit -p mobilecoin-crypto
+
+# Generate a withdrawal completion proof
+WITHDRAWAL_ID=0 cargo run --example complete-withdrawal -p mobilecoin-crypto
+
+# Verify a signature
+cargo run --example verify-signature -p mobilecoin-crypto
+```
+
 ## How It Works
 
 ### Deposit Flow (MOB → wMOB)
@@ -128,8 +144,10 @@ cargo run --release
 4. **Winner Selection**: Best quote wins; solver receives assignment notification
 5. **Settlement**:
    - User sends MOB to the bridge custody address
-   - Bridge authorities verify the deposit (3-of-5 multi-sig)
-   - wMOB is minted to the user's NEAR account
+   - Bridge authorities verify the deposit (2-of-3 multi-sig)
+   - Authorities sign a deposit proof attesting to the on-chain MOB transfer
+   - User (or anyone) submits the signed proof to the NEAR bridge contract
+   - Bridge verifies signatures and mints wMOB to the user's NEAR account
 
 ### Withdrawal Flow (wMOB → MOB)
 
@@ -137,9 +155,11 @@ cargo run --release
 2. **Lock wMOB**: User's wMOB is locked in the verifier contract
 3. **Solver Processing**: Winning solver initiates withdrawal via the bridge
 4. **Bridge Processing**:
-   - wMOB is burned
-   - Authorities send MOB to user's stealth address
-   - Completion proof is submitted to the bridge
+   - User calls `withdraw()` on bridge contract, burning their wMOB
+   - Bridge records a pending withdrawal request
+   - Authorities send MOB from custody to user's MobileCoin address
+   - Authorities sign a completion proof attesting to the MOB transfer
+   - Anyone submits the proof to finalize the withdrawal on NEAR
 
 ### Solver Flow
 
@@ -177,11 +197,22 @@ SettleResult (completion)
 
 ### Bridge Security
 
-- **Multi-Signature Authority**: Configurable threshold (e.g., 3-of-5)
+- **Multi-Signature Authority**: Configurable threshold (default 2-of-3)
 - **Replay Protection**: Transaction hash and nonce tracking
 - **Rate Limiting**: Per-hour limits on deposits, withdrawals, and volume
 - **Emergency Controls**: Pause/unpause capability for incident response
 - **Amount Validation**: Min/max limits per transaction
+
+### Trust Model
+
+This bridge uses a **Proof-of-Authority (PoA)** design. MobileCoin does not support smart contracts or light clients, so trustless verification from NEAR is not possible. Instead:
+
+- **N-of-M authorities** must sign to approve deposits and withdrawals
+- Each authority independently monitors the MobileCoin blockchain
+- Authorities are expected to be separate entities (e.g., MobileCoin Foundation, NEAR Foundation, independent operator)
+- **Trust assumption**: If threshold authorities collude, they could mint unbacked wMOB or steal custody funds
+
+This is similar to how WBTC (Wrapped Bitcoin) works on Ethereum - a custodial bridge with multi-sig control.
 
 ### Smart Contract Security
 
@@ -242,7 +273,12 @@ mobilecoin-intents/
 │       └── mob-bridge/    # POA bridge contract
 ├── solver-mobilecoin/     # Production solver
 ├── examples/
-│   └── simple-solver/     # Example implementation
+│   ├── simple-solver/     # Example solver implementation
+│   ├── generate-keys.rs   # Authority & wallet key generation
+│   ├── demo-real-deposit.rs  # Deposit proof generator
+│   ├── complete-withdrawal.rs # Withdrawal completion proof
+│   └── verify-signature.rs    # Signature verification tool
+├── scripts/               # Deployment scripts
 └── docs/                  # Documentation
 ```
 

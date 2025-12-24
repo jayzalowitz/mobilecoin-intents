@@ -21,3 +21,25 @@ thiserror.workspace = true
 [dev-dependencies]
 rand.workspace = true
 serde_json.workspace = true
+chrono = "0.4"
+bs58.workspace = true
+
+[[example]]
+name = "generate-keys"
+path = "../examples/generate-keys.rs"
+
+[[example]]
+name = "demo-deposit"
+path = "../examples/demo-deposit.rs"
+
+[[example]]
+name = "demo-real-deposit"
+path = "../examples/demo-real-deposit.rs"
+
+[[example]]
+name = "verify-signature"
+path = "../examples/verify-signature.rs"
+
+[[example]]
+name = "complete-withdrawal"
+path = "../examples/complete-withdrawal.rs"

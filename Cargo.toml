@@ -33,8 +33,8 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 bs58 = { version = "0.5", default-features = false, features = ["alloc"] }
 borsh = "1.2"
 
-# NEAR SDK
-near-sdk = "5.5"
+# NEAR SDK - pinned to 5.5.0 for compatibility with near_bindgen macro
+near-sdk = "=5.5.0"
 
 # Async
 tokio = { version = "1", features = ["full"] }

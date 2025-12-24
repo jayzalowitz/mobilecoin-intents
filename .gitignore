@@ -21,6 +21,14 @@
 !.env.example
 !.env.sample
 
+# Wallet and key files (NEVER COMMIT)
+/secrets/
+*.key
+*.secret
+wallet.json
+*-wallet.json
+*-keys.json
+
 # Debug files
 *.log
 *.pdb
